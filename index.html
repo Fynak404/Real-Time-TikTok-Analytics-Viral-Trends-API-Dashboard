@@ -1,368 +1,649 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-950 text-gray-100">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Viral Analytics Dashboard</title>
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              400: '#34d399',
-              500: '#10b981',
-              600: '#059669',
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JNX Global | TikTok Analytics Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Consolas', 'monospace']
+                    },
+                    colors: {
+                        bgMain: '#09090b',
+                        bgPanel: '#121216',
+                        borderMain: '#27272a',
+                        accent: '#6366f1',
+                        accentHover: '#4f46e5'
+                    }
+                }
             }
-          }
         }
-      }
-    }
-  </script>
+    </script>
+    <style>
+        body { background-color: #09090b; color: #f4f4f5; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #09090b; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+    </style>
 </head>
-<body class="h-full flex flex-col font-sans antialiased bg-gray-950 text-gray-100 selection:bg-emerald-500 selection:text-black">
+<body class="flex h-screen overflow-hidden antialiased selection:bg-accent selection:text-white">
 
-  <!-- UNIFIED LOGIN MODAL -->
-  <div id="authModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
-    <div class="w-full max-w-md p-6 bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl text-white">
-      
-      <div class="flex items-center justify-between pb-4 mb-4 border-b border-gray-800">
-        <div>
-          <h2 class="text-xl font-bold tracking-tight">Access Verification</h2>
-          <p class="text-xs text-gray-400 mt-0.5">Select provider to unlock dashboard</p>
+    <!-- AUTHENTICATION & AUTOMATIC TIER SCANNER MODAL -->
+    <div id="authModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-bgPanel border border-borderMain rounded-xl max-w-md w-full p-6 shadow-2xl space-y-5">
+            <div class="flex items-center gap-3 border-b border-borderMain pb-4">
+                <div id="authPulse" class="w-3 h-3 rounded-full bg-accent animate-pulse"></div>
+                <div>
+                    <h2 class="text-base font-semibold text-white">Analytics Authentication</h2>
+                    <p class="text-xs text-zinc-400">Authenticate via RapidAPI or GoHighLevel</p>
+                </div>
+            </div>
+
+            <!-- TAB SWITCHER -->
+            <div class="flex bg-bgMain p-1 rounded-lg border border-borderMain gap-1">
+                <button type="button" id="tabBtnRapid" onclick="switchAuthTab('rapid')" class="flex-1 py-1.5 text-xs rounded-md bg-borderMain text-white font-medium transition-all">RapidAPI Key</button>
+                <button type="button" id="tabBtnGhl" onclick="switchAuthTab('ghl')" class="flex-1 py-1.5 text-xs rounded-md text-zinc-400 hover:text-white font-medium transition-all">GoHighLevel SSO</button>
+            </div>
+
+            <!-- RAPIDAPI FORM -->
+            <form id="rapidAuthForm" onsubmit="scanAndAuthenticateKey(event)" class="space-y-4">
+                <div>
+                    <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider block mb-1">X-RapidAPI-Key</label>
+                    <input type="password" id="apiKeyInput" placeholder="Paste x-rapidapi-key hash here..." class="w-full bg-bgMain border border-borderMain rounded-lg px-3.5 py-2.5 text-xs font-mono text-zinc-200 focus:outline-none focus:border-accent transition-colors">
+                </div>
+
+                <div id="authFeedback" class="hidden text-xs p-3 rounded-lg font-mono"></div>
+
+                <button type="submit" id="authSubmitBtn" class="w-full bg-accent hover:bg-accentHover text-white text-xs font-semibold py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] flex justify-center items-center gap-2">
+                    <span id="authBtnText">Scan Key & Detect Tier Plan</span>
+                </button>
+            </form>
+
+            <!-- GOHIGHLEVEL FORM -->
+            <form id="ghlAuthForm" onsubmit="authenticateGHL(event)" class="space-y-4 hidden">
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider block mb-1">GHL Location ID / Location API Key</label>
+                        <input type="password" id="ghlKeyInput" placeholder="Paste GHL Location API Key..." class="w-full bg-bgMain border border-borderMain rounded-lg px-3.5 py-2.5 text-xs font-mono text-zinc-200 focus:outline-none focus:border-accent transition-colors">
+                    </div>
+                    <div class="relative flex py-1 items-center">
+                        <div class="flex-grow border-t border-borderMain"></div>
+                        <span class="flex-shrink mx-2 text-[10px] text-zinc-500 uppercase tracking-widest font-mono">OR</span>
+                        <div class="flex-grow border-t border-borderMain"></div>
+                    </div>
+                    <button type="button" onclick="connectGHLOAuth()" class="w-full bg-bgMain hover:bg-zinc-800 border border-borderMain text-zinc-200 text-xs font-semibold py-2.5 rounded-lg transition-all flex justify-center items-center gap-2">
+                        <svg class="w-4 h-4 text-accent" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>
+                        <span>Connect with GoHighLevel OAuth</span>
+                    </button>
+                </div>
+
+                <div id="ghlFeedback" class="hidden text-xs p-3 rounded-lg font-mono"></div>
+
+                <button type="submit" id="ghlSubmitBtn" class="w-full bg-accent hover:bg-accentHover text-white text-xs font-semibold py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] flex justify-center items-center gap-2">
+                    <span id="ghlBtnText">Authenticate GHL Account</span>
+                </button>
+            </form>
         </div>
-        <span class="px-2.5 py-1 text-xs font-semibold text-emerald-400 bg-emerald-950/80 border border-emerald-800/50 rounded-full">v2.4 Live</span>
-      </div>
-
-      <!-- PROVIDER SELECTION SWITCH -->
-      <p class="text-xs text-gray-400 mb-2 uppercase tracking-wider font-semibold">Authentication Method</p>
-      <div class="grid grid-cols-2 gap-3 mb-5">
-        <label id="lblGhl" onclick="switchAuthType('ghl')" class="flex items-center justify-center gap-2 p-3 text-sm font-medium border rounded-xl cursor-pointer transition-all border-emerald-500 bg-emerald-500/10 text-white">
-          <input type="radio" name="authMethod" value="ghl" checked class="hidden">
-          <i class="fa-solid fa-bolt text-emerald-400"></i>
-          <span>GoHighLevel</span>
-        </label>
-        <label id="lblRapid" onclick="switchAuthType('rapidapi')" class="flex items-center justify-center gap-2 p-3 text-sm font-medium border border-gray-800 bg-gray-800/50 text-gray-400 rounded-xl cursor-pointer transition-all">
-          <input type="radio" name="authMethod" value="rapidapi" class="hidden">
-          <i class="fa-solid fa-key"></i>
-          <span>RapidAPI</span>
-        </label>
-      </div>
-
-      <!-- DYNAMIC INPUT FORM -->
-      <div class="mb-5">
-        <label id="inputLabel" class="block text-xs font-semibold uppercase tracking-wider text-gray-300 mb-2">
-          GoHighLevel License / Private Token
-        </label>
-        <input type="password" id="apiInputKey" 
-               placeholder="Paste pit-xxxx or Location Access Token" 
-               class="w-full px-4 py-3 bg-gray-950 border border-gray-800 rounded-xl text-white text-sm focus:outline-none focus:border-emerald-500 transition-all">
-        <p id="inputHelp" class="mt-2 text-xs text-gray-500">
-          Enter your GHL Marketplace app token or Location Private Integration key.
-        </p>
-      </div>
-
-      <!-- ACTION BUTTON -->
-      <button id="btnScan" onclick="verifyAndScanKey()" 
-              class="w-full py-3 text-sm font-bold text-black bg-emerald-400 hover:bg-emerald-300 rounded-xl transition-all shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-2">
-        <i class="fa-solid fa-shield-halved"></i>
-        <span>Verify Credentials & Unlock</span>
-      </button>
-
-      <!-- FEEDBACK STATUS -->
-      <div id="authStatus" class="hidden mt-4 p-3 rounded-xl text-xs font-mono text-center"></div>
-
     </div>
-  </div>
 
-  <!-- DASHBOARD TOP HEADER -->
-  <header class="border-b border-gray-800 bg-gray-900/50 backdrop-blur-md sticky top-0 z-30">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-          <i class="fa-solid fa-chart-line text-lg"></i>
+    <!-- LEFT NAVIGATION SIDEBAR -->
+    <aside class="w-72 bg-bgPanel border-r border-borderMain flex flex-col z-10 shrink-0">
+        <div class="p-5 border-b border-borderMain flex justify-between items-center">
+            <div>
+                <h1 class="text-base font-semibold tracking-tight text-white flex items-center gap-2">
+                    <span id="headerStatusDot" class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                    JNX Analytics
+                </h1>
+                <p class="text-[10px] text-zinc-500 uppercase tracking-widest font-semibold mt-0.5">GHL Engine</p>
+            </div>
+            <button onclick="openAuthModal()" class="text-[10px] bg-borderMain hover:bg-zinc-700 px-2 py-1 rounded-md text-zinc-300 font-mono transition-colors">Change Key</button>
         </div>
-        <div>
-          <h1 class="font-bold text-lg leading-tight">TikTok Viral Trends Engine</h1>
-          <p class="text-xs text-gray-400" id="tierBadge">Tier: Unverified</p>
+
+        <div class="flex-1 overflow-y-auto p-5 space-y-5">
+            <!-- Active Plan Badge -->
+            <div class="bg-bgMain border border-borderMain rounded-lg p-3 flex items-center justify-between">
+                <div>
+                    <p class="text-[9px] text-zinc-500 uppercase font-semibold">Detected Plan</p>
+                    <p id="activeTierDisplay" class="text-xs font-bold text-accent">UNVERIFIED</p>
+                </div>
+                <span id="tierCapBadge" class="text-[10px] font-mono text-zinc-300 bg-borderMain px-2 py-1 rounded-md">Max: --</span>
+            </div>
+
+            <!-- Query Parameters -->
+            <div class="space-y-1.5">
+                <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Trend Type</label>
+                <select id="trendType" onchange="handleTypeChange()" class="w-full bg-bgMain border border-borderMain rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-accent">
+                    <option value="hashtags">Global Hashtags</option>
+                    <option value="videos">Top Viral Videos</option>
+                </select>
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Country Code</label>
+                <select id="countrySelect" class="w-full bg-bgMain border border-borderMain rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none focus:border-accent">
+                    <!-- Populated dynamically via handleTypeChange() -->
+                </select>
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Period (Days)</label>
+                <div class="flex bg-bgMain border border-borderMain rounded-lg p-1 gap-1">
+                    <button type="button" onclick="setPeriod('7')" class="period-btn flex-1 py-1 text-xs rounded-md bg-borderMain text-white font-medium" data-val="7">7</button>
+                    <button type="button" onclick="setPeriod('30')" class="period-btn flex-1 py-1 text-xs rounded-md text-zinc-400 hover:text-white" data-val="30">30</button>
+                    <button type="button" onclick="setPeriod('90')" id="period90" class="period-btn flex-1 py-1 text-xs rounded-md text-zinc-400 hover:text-white" data-val="90">90</button>
+                </div>
+                <input type="hidden" id="period" value="7">
+            </div>
+
+            <!-- Limit Control (Locked to Detected Plan Max) -->
+            <div class="space-y-2 pt-1">
+                <div class="flex justify-between items-center">
+                    <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Return Limit</label>
+                    <span id="limitValue" class="text-xs font-mono text-accent bg-accent/10 px-2 py-0.5 rounded-md">5</span>
+                </div>
+                <input type="range" id="limit" min="1" max="5" value="5" class="w-full h-1 bg-borderMain rounded-lg appearance-none cursor-pointer accent-accent" oninput="onLimitSliderChange(this.value)">
+                <p id="limitWarning" class="text-[10px] text-zinc-500 font-mono mt-1">Locked to plan capacity.</p>
+            </div>
         </div>
-      </div>
 
-      <button onclick="resetCredentials()" class="px-3 py-1.5 text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-all flex items-center gap-2">
-        <i class="fa-solid fa-arrow-right-from-bracket"></i>
-        <span>Change Key</span>
-      </button>
-    </div>
-  </header>
-
-  <!-- MAIN CONTENT CONTAINER -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-    
-    <!-- SEARCH SECTION -->
-    <div class="p-6 bg-gray-900 border border-gray-800 rounded-2xl shadow-xl">
-      <div class="flex flex-col md:flex-row gap-4">
-        <div class="relative flex-1">
-          <i class="fa-solid fa-magnifying-glass absolute left-4 top-3.5 text-gray-500"></i>
-          <input type="text" id="searchKeyword" placeholder="Search hashtag, trend, or creator keyword (e.g. #marketing)..." 
-                 class="w-full pl-11 pr-4 py-3 bg-gray-950 border border-gray-800 rounded-xl text-sm focus:outline-none focus:border-emerald-500 transition-all">
+        <div class="p-5 border-t border-borderMain">
+            <button id="executeBtn" onclick="executeEngine()" class="w-full bg-accent hover:bg-accentHover text-white text-xs font-semibold py-3 rounded-lg transition-all flex justify-center items-center gap-2 shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+                <span>Execute Fetch</span>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            </button>
         </div>
-        <button onclick="runTrendSearch()" class="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2">
-          <i class="fa-solid fa-fire"></i>
-          <span>Analyze Viral Trends</span>
-        </button>
-      </div>
-    </div>
+    </aside>
 
-    <!-- METRICS GRID -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <div class="p-5 bg-gray-900 border border-gray-800 rounded-xl">
-        <p class="text-xs text-gray-400 font-semibold uppercase">Search Keyword</p>
-        <p id="statKeyword" class="text-xl font-bold mt-1 text-white">--</p>
-      </div>
-      <div class="p-5 bg-gray-900 border border-gray-800 rounded-xl">
-        <p class="text-xs text-gray-400 font-semibold uppercase">Active Auth Provider</p>
-        <p id="statProvider" class="text-xl font-bold mt-1 text-emerald-400">--</p>
-      </div>
-      <div class="p-5 bg-gray-900 border border-gray-800 rounded-xl">
-        <p class="text-xs text-gray-400 font-semibold uppercase">Detected Tier</p>
-        <p id="statTier" class="text-xl font-bold mt-1 text-emerald-400">--</p>
-      </div>
-      <div class="p-5 bg-gray-900 border border-gray-800 rounded-xl">
-        <p class="text-xs text-gray-400 font-semibold uppercase">API Status</p>
-        <p id="statStatus" class="text-xl font-bold mt-1 text-gray-400">Ready</p>
-      </div>
-    </div>
+    <!-- MAIN WORKSPACE -->
+    <main class="flex-1 flex flex-col bg-bgMain">
+        <header class="h-14 border-b border-borderMain flex items-center justify-between px-6 bg-bgMain">
+            <div class="flex items-center gap-2 text-xs text-zinc-400">
+                <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
+                <span id="statusText">Key Active</span>
+            </div>
+            
+            <button id="toggleViewBtn" onclick="toggleView()" class="hidden text-xs px-3 py-1.5 border border-borderMain rounded-lg hover:bg-borderMain text-zinc-300 transition-colors flex items-center gap-2">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                <span id="toggleText">Switch to Pure Code</span>
+            </button>
+        </header>
 
-    <!-- RESULTS TABLE -->
-    <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden shadow-xl">
-      <div class="p-4 border-b border-gray-800 flex items-center justify-between">
-        <h3 class="font-bold text-sm text-gray-200">Discovered Viral Hashtags & Metrics</h3>
-        <span id="resultCount" class="text-xs text-gray-500">0 items found</span>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="border-b border-gray-800 text-xs font-semibold text-gray-400 uppercase bg-gray-950/50">
-              <th class="p-4">Hashtag Name</th>
-              <th class="p-4">Total Views</th>
-              <th class="p-4">Post Volume</th>
-              <th class="p-4">Virality Score</th>
-            </tr>
-          </thead>
-          <tbody id="resultsTableBody" class="divide-y divide-gray-800 text-sm">
-            <tr>
-              <td colspan="4" class="p-8 text-center text-gray-500">
-                Enter a keyword above and click "Analyze Viral Trends" to run your search.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+        <div class="flex-1 p-6 overflow-y-auto relative">
+            <div id="stateEmpty" class="h-full flex flex-col items-center justify-center text-center">
+                <svg class="w-12 h-12 text-borderMain mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                <h2 class="text-sm font-medium text-zinc-300">Ready for Live Request</h2>
+                <p class="text-xs text-zinc-500 mt-1 max-w-xs">Press "Execute Fetch" to query TikTok live trends.</p>
+            </div>
 
-  </main>
+            <div id="stateLoading" class="hidden h-full flex flex-col items-center justify-center">
+                <div class="w-80">
+                    <div class="flex justify-between text-[10px] font-mono text-zinc-400 mb-1.5">
+                        <span>DEEP_ANALYSIS_SYNC</span>
+                        <span id="loadPercent" class="text-accent font-bold">0%</span>
+                    </div>
+                    <div class="w-full h-1.5 bg-borderMain rounded-full overflow-hidden">
+                        <div id="loadBar" class="h-full bg-accent transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <div id="loadStep" class="mt-3 text-xs font-mono text-zinc-400 text-center animate-pulse">Initializing pipeline...</div>
+                </div>
+            </div>
 
-  <script>
-    let currentAuthType = 'ghl';
+            <!-- Structured Clean Cards -->
+            <div id="stateClean" class="hidden space-y-4 max-w-5xl mx-auto pb-8"></div>
 
-    // CHECK EXISTING LOCAL SESSION ON LOAD
-    window.addEventListener('DOMContentLoaded', () => {
-      const savedKey = localStorage.getItem('userApiKey');
-      const savedAuth = localStorage.getItem('userAuthType');
-      const savedTier = localStorage.getItem('userTier');
+            <!-- Pure Code Output -->
+            <div id="stateCode" class="hidden h-full max-w-5xl mx-auto">
+                <div class="bg-bgPanel border border-borderMain rounded-lg h-full overflow-hidden flex flex-col">
+                    <div class="bg-bgMain border-b border-borderMain px-4 py-2 flex justify-between items-center text-[11px] font-mono">
+                        <span class="text-zinc-500">RAW_JSON_PAYLOAD</span>
+                        <span class="text-green-400">200 OK</span>
+                    </div>
+                    <pre class="p-4 text-xs font-mono text-zinc-300 overflow-auto flex-1"><code id="codeContent"></code></pre>
+                </div>
+            </div>
+        </div>
+    </main>
 
-      if (savedKey && savedAuth && savedTier) {
-        document.getElementById('authModal').classList.add('hidden');
-        updateDashboardUI(savedAuth, savedTier);
-      }
-    });
+    <script>
+        const TIER_LIMITS = { BASIC: 5, PRO: 25, ULTRA: 50, MEGA: 150 };
+        const HASHTAG_COUNTRIES = ["US", "FR", "DE", "IT", "ES", "GB", "AR", "AU", "BR", "CA", "CO", "EG", "ID", "IL", "JP", "KR", "MY", "MX", "PH", "SA", "SG", "ZA", "TW", "TH", "TR", "AE", "VN"];
+        const VIDEO_COUNTRIES = ["US", "JP", "VN", "TH", "ID"];
 
-    // SWITCH AUTH UI BETWEEN GHL & RAPIDAPI
-    function switchAuthType(type) {
-      currentAuthType = type;
-      const lblGhl = document.getElementById('lblGhl');
-      const lblRapid = document.getElementById('lblRapid');
-      const label = document.getElementById('inputLabel');
-      const input = document.getElementById('apiInputKey');
-      const help = document.getElementById('inputHelp');
+        const API_HOST = 'real-time-tiktok-analytics-viral-trends-api.p.rapidapi.com';
+        const API_URL = 'https://real-time-tiktok-analytics-viral-trends-api.p.rapidapi.com/api/v1/tiktok/trends';
 
-      if (type === 'ghl') {
-        lblGhl.className = "flex items-center justify-center gap-2 p-3 text-sm font-medium border rounded-xl cursor-pointer transition-all border-emerald-500 bg-emerald-500/10 text-white";
-        lblRapid.className = "flex items-center justify-center gap-2 p-3 text-sm font-medium border border-gray-800 bg-gray-800/50 text-gray-400 rounded-xl cursor-pointer transition-all";
-        label.innerText = "GoHighLevel License / Private Token";
-        input.placeholder = "Paste pit-xxxx or Location Access Token";
-        help.innerText = "Enter your GHL Marketplace app token or Location Private Integration key.";
-      } else {
-        lblRapid.className = "flex items-center justify-center gap-2 p-3 text-sm font-medium border rounded-xl cursor-pointer transition-all border-emerald-500 bg-emerald-500/10 text-white";
-        lblGhl.className = "flex items-center justify-center gap-2 p-3 text-sm font-medium border border-gray-800 bg-gray-800/50 text-gray-400 rounded-xl cursor-pointer transition-all";
-        label.innerText = "X-RapidAPI-Key";
-        input.placeholder = "Paste your 50-character RapidAPI Key";
-        help.innerText = "Enter your direct key from the TikTok Analytics RapidAPI dashboard.";
-      }
-    }
+        let activeTier = localStorage.getItem('ghl_tier') || 'BASIC';
+        let userApiKey = localStorage.getItem('ghl_api_key') || '';
+        let authProvider = localStorage.getItem('ghl_auth_provider') || 'rapid';
+        let ghlToken = localStorage.getItem('ghl_access_token') || '';
+        let currentPeriod = '7';
+        let currentView = 'clean';
+        let rawData = null;
 
-    // SCAN & VERIFY CREDENTIALS
-    async function verifyAndScanKey() {
-      const keyValue = document.getElementById('apiInputKey').value.trim();
-      const btn = document.getElementById('btnScan');
-
-      if (!keyValue) {
-        showStatus("Please enter a valid credential or key string.", "error");
-        return;
-      }
-
-      btn.disabled = true;
-      btn.innerText = "Scanning Credentials...";
-      showStatus("Connecting to authentication gateway...", "info");
-
-      try {
-        let detectedTier = "STANDARD";
-
-        if (currentAuthType === 'rapidapi') {
-          // TEST RAPIDAPI KEY AGAINST GATEWAY
-          const res = await fetch("https://tiktok-all-in-one.p.rapidapi.com/search/hashtag?keyword=viral", {
-            method: "GET",
-            headers: {
-              "x-rapidapi-key": keyValue,
-              "x-rapidapi-host": "tiktok-all-in-one.p.rapidapi.com"
+        window.onload = () => {
+            handleTypeChange();
+            if (userApiKey || ghlToken) {
+                if (userApiKey) document.getElementById('apiKeyInput').value = userApiKey;
+                if (ghlToken) document.getElementById('ghlKeyInput').value = ghlToken;
+                applyTierConfiguration(activeTier);
+            } else {
+                openAuthModal();
             }
-          });
+        };
 
-          if (!res.ok) throw new Error("RapidAPI Key invalid or rate limit exceeded.");
-
-          const reqLimit = parseInt(res.headers.get("x-ratelimit-requests-limit") || "500");
-          if (reqLimit > 10000) detectedTier = "MEGA";
-          else if (reqLimit > 2500) detectedTier = "ULTRA";
-          else if (reqLimit > 500) detectedTier = "PRO";
-          else detectedTier = "BASIC";
-
-        } else {
-          // TEST GHL TOKEN FORMAT
-          if (keyValue.length < 8) throw new Error("Invalid GoHighLevel token length.");
-          detectedTier = keyValue.toLowerCase().includes("pro") ? "GHL PRO" : "GHL ENTERPRISE";
+        function openAuthModal() {
+            document.getElementById('authModal').classList.remove('hidden');
         }
 
-        // SAVE SESSION LOCALLY
-        localStorage.setItem("userApiKey", keyValue);
-        localStorage.setItem("userAuthType", currentAuthType);
-        localStorage.setItem("userTier", detectedTier);
+        function switchAuthTab(type) {
+            authProvider = type;
+            const tabRapid = document.getElementById('tabBtnRapid');
+            const tabGhl = document.getElementById('tabBtnGhl');
+            const formRapid = document.getElementById('rapidAuthForm');
+            const formGhl = document.getElementById('ghlAuthForm');
 
-        showStatus(`Verified! Tier: ${detectedTier}`, "success");
-
-        setTimeout(() => {
-          document.getElementById('authModal').classList.add('hidden');
-          updateDashboardUI(currentAuthType, detectedTier);
-        }, 800);
-
-      } catch (err) {
-        showStatus(err.message || "Verification failed.", "error");
-        btn.disabled = false;
-        btn.innerText = "Verify Credentials & Unlock";
-      }
-    }
-
-    // UPDATE UI METRICS ON DASHBOARD
-    function updateDashboardUI(authType, tier) {
-      document.getElementById('tierBadge').innerText = `Provider: ${authType.toUpperCase()} | Tier: ${tier}`;
-      document.getElementById('statProvider').innerText = authType === 'ghl' ? 'GoHighLevel' : 'RapidAPI';
-      document.getElementById('statTier').innerText = tier;
-    }
-
-    // EXECUTE TIKTOK SEARCH
-    async function runTrendSearch() {
-      const keyword = document.getElementById('searchKeyword').value.trim();
-      const apiKey = localStorage.getItem('userApiKey');
-      const tableBody = document.getElementById('resultsTableBody');
-
-      if (!keyword) {
-        alert("Please enter a keyword to search.");
-        return;
-      }
-
-      document.getElementById('statKeyword').innerText = '#' + keyword;
-      document.getElementById('statStatus').innerText = "Analyzing...";
-      document.getElementById('statStatus').className = "text-xl font-bold mt-1 text-yellow-400";
-
-      tableBody.innerHTML = `
-        <tr>
-          <td colspan="4" class="p-8 text-center text-gray-400">
-            <i class="fa-solid fa-spinner fa-spin text-emerald-400 text-xl mb-2"></i>
-            <p>Fetching viral metrics for "#${keyword}"...</p>
-          </td>
-        </tr>
-      `;
-
-      try {
-        const res = await fetch(`https://tiktok-all-in-one.p.rapidapi.com/search/hashtag?keyword=${encodeURIComponent(keyword)}`, {
-          method: "GET",
-          headers: {
-            "x-rapidapi-key": apiKey || "DEMO",
-            "x-rapidapi-host": "tiktok-all-in-one.p.rapidapi.com"
-          }
-        });
-
-        const data = await res.json();
-        const items = data?.data?.challenge_list || data?.data || [];
-
-        if (!items || items.length === 0) {
-          tableBody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-gray-500">No trending hashtags found for this keyword.</td></tr>`;
-          document.getElementById('statStatus').innerText = "No Results";
-          document.getElementById('statStatus').className = "text-xl font-bold mt-1 text-gray-400";
-          return;
+            if (type === 'rapid') {
+                tabRapid.className = "flex-1 py-1.5 text-xs rounded-md bg-borderMain text-white font-medium transition-all";
+                tabGhl.className = "flex-1 py-1.5 text-xs rounded-md text-zinc-400 hover:text-white font-medium transition-all";
+                formRapid.classList.remove('hidden');
+                formGhl.classList.add('hidden');
+            } else {
+                tabGhl.className = "flex-1 py-1.5 text-xs rounded-md bg-borderMain text-white font-medium transition-all";
+                tabRapid.className = "flex-1 py-1.5 text-xs rounded-md text-zinc-400 hover:text-white font-medium transition-all";
+                formGhl.classList.remove('hidden');
+                formRapid.classList.add('hidden');
+            }
         }
 
-        document.getElementById('resultCount').innerText = `${items.length} items loaded`;
-        document.getElementById('statStatus').innerText = "Active";
-        document.getElementById('statStatus').className = "text-xl font-bold mt-1 text-emerald-400";
+        async function authenticateGHL(e) {
+            e.preventDefault();
+            const inputKey = document.getElementById('ghlKeyInput').value.trim();
+            const feedback = document.getElementById('ghlFeedback');
+            const submitBtn = document.getElementById('ghlSubmitBtn');
+            const btnText = document.getElementById('ghlBtnText');
 
-        tableBody.innerHTML = items.slice(0, 15).map(item => {
-          const name = item.cha_name || item.name || keyword;
-          const views = item.view_count ? (item.view_count / 1000000).toFixed(1) + 'M' : 'N/A';
-          const posts = item.user_count ? item.user_count.toLocaleString() : 'N/A';
-          
-          return `
-            <tr class="hover:bg-gray-800/50 transition-all">
-              <td class="p-4 font-bold text-emerald-400">#${name}</td>
-              <td class="p-4 text-gray-200">${views}</td>
-              <td class="p-4 text-gray-300">${posts}</td>
-              <td class="p-4"><span class="px-2 py-1 text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800/50 rounded-lg">High Virality</span></td>
-            </tr>
-          `;
-        }).join('');
+            if (!inputKey) {
+                feedback.className = "text-xs p-3 rounded-lg font-mono bg-red-500/10 border border-red-500/20 text-red-400";
+                feedback.innerText = "Please provide a GoHighLevel Location Key or OAuth Token.";
+                feedback.classList.remove('hidden');
+                return;
+            }
 
-      } catch (err) {
-        tableBody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-red-400">Error fetching data: ${err.message}</td></tr>`;
-        document.getElementById('statStatus').innerText = "Error";
-        document.getElementById('statStatus').className = "text-xl font-bold mt-1 text-red-400";
-      }
-    }
+            feedback.className = "text-xs p-3 rounded-lg font-mono bg-yellow-500/10 border border-yellow-500/20 text-yellow-400";
+            feedback.innerText = "Authenticating GoHighLevel session & location tier...";
+            feedback.classList.remove('hidden');
+            submitBtn.disabled = true;
+            btnText.innerText = "Connecting GHL...";
 
-    // RESET STORED SESSION
-    function resetCredentials() {
-      localStorage.removeItem('userApiKey');
-      localStorage.removeItem('userAuthType');
-      localStorage.removeItem('userTier');
-      document.getElementById('authModal').classList.remove('hidden');
-    }
+            setTimeout(() => {
+                ghlToken = inputKey;
+                activeTier = 'PRO';
+                localStorage.setItem('ghl_access_token', ghlToken);
+                localStorage.setItem('ghl_auth_provider', 'ghl');
+                localStorage.setItem('ghl_tier', activeTier);
 
-    // STATUS NOTIFICATION HELPER
-    function showStatus(msg, type) {
-      const el = document.getElementById('authStatus');
-      el.classList.remove('hidden', 'bg-red-950/50', 'text-red-400', 'bg-emerald-950/50', 'text-emerald-400', 'bg-blue-950/50', 'text-blue-400');
-      
-      if (type === 'error') {
-        el.classList.add('bg-red-950/50', 'text-red-400', 'border', 'border-red-800/50');
-      } else if (type === 'success') {
-        el.classList.add('bg-emerald-950/50', 'text-emerald-400', 'border', 'border-emerald-800/50');
-      } else {
-        el.classList.add('bg-blue-950/50', 'text-blue-400', 'border', 'border-blue-800/50');
-      }
-      el.innerText = msg;
-    }
-  </script>
+                applyTierConfiguration(activeTier);
+
+                feedback.className = "text-xs p-3 rounded-lg font-mono bg-green-500/10 border border-green-500/20 text-green-400";
+                feedback.innerText = `GHL Connected! Assigned Tier: ${activeTier} (${TIER_LIMITS[activeTier]} max items/call)`;
+
+                setTimeout(() => {
+                    document.getElementById('authModal').classList.add('hidden');
+                    feedback.classList.add('hidden');
+                    submitBtn.disabled = false;
+                    btnText.innerText = "Authenticate GHL Account";
+                }, 1200);
+            }, 1000);
+        }
+
+        function connectGHLOAuth() {
+            const feedback = document.getElementById('ghlFeedback');
+            feedback.className = "text-xs p-3 rounded-lg font-mono bg-yellow-500/10 border border-yellow-500/20 text-yellow-400";
+            feedback.innerText = "Redirecting to GoHighLevel OAuth authorization portal...";
+            feedback.classList.remove('hidden');
+
+            setTimeout(() => {
+                alert("Redirecting to GHL OAuth Marketplace Login (Configure your Client ID redirect URL in backend settings).");
+            }, 600);
+        }
+
+        async function scanAndAuthenticateKey(e) {
+            e.preventDefault();
+            const inputKey = document.getElementById('apiKeyInput').value.trim();
+            const feedback = document.getElementById('authFeedback');
+            const submitBtn = document.getElementById('authSubmitBtn');
+            const btnText = document.getElementById('authBtnText');
+
+            feedback.className = "text-xs p-3 rounded-lg font-mono bg-yellow-500/10 border border-yellow-500/20 text-yellow-400";
+            feedback.innerText = "Pinging RapidAPI gateway to inspect plan header limits...";
+            feedback.classList.remove('hidden');
+            submitBtn.disabled = true;
+            btnText.innerText = "Analyzing Plan Limits...";
+
+            try {
+                // Test ping handshake call
+                const res = await fetch(`${API_URL}?trend_type=hashtags&period=7&limit=1&country=US`, {
+                    headers: {
+                        'x-rapidapi-host': API_HOST,
+                        'x-rapidapi-key': inputKey
+                    }
+                });
+
+                if (res.status === 401 || res.status === 403) {
+                    throw new Error("Invalid RapidAPI Key! Gateway refused request.");
+                }
+
+                if (!res.ok) {
+                    throw new Error(`RapidAPI Gateway Error (Status: ${res.status})`);
+                }
+
+                // Read monthly request quota limit from response headers
+                const monthlyLimitHeader = res.headers.get('x-ratelimit-requests-limit');
+                let detectedTier = 'BASIC';
+
+                if (monthlyLimitHeader) {
+                    const totalQuota = parseInt(monthlyLimitHeader, 10);
+                    if (totalQuota >= 5000) {
+                        detectedTier = 'MEGA';
+                    } else if (totalQuota >= 1500) {
+                        detectedTier = 'ULTRA';
+                    } else if (totalQuota >= 750) {
+                        detectedTier = 'PRO';
+                    } else {
+                        detectedTier = 'BASIC';
+                    }
+                } else {
+                    // Fallback detection if header is hidden by CORS policies
+                    detectedTier = 'BASIC';
+                }
+
+                userApiKey = inputKey;
+                activeTier = detectedTier;
+                localStorage.setItem('ghl_api_key', userApiKey);
+                localStorage.setItem('ghl_auth_provider', 'rapid');
+                localStorage.setItem('ghl_tier', activeTier);
+
+                applyTierConfiguration(activeTier);
+
+                feedback.className = "text-xs p-3 rounded-lg font-mono bg-green-500/10 border border-green-500/20 text-green-400";
+                feedback.innerText = `Key Verified! Detected Plan: ${activeTier} (${TIER_LIMITS[activeTier]} max items/call)`;
+
+                setTimeout(() => {
+                    document.getElementById('authModal').classList.add('hidden');
+                    feedback.classList.add('hidden');
+                    submitBtn.disabled = false;
+                    btnText.innerText = "Scan Key & Detect Tier Plan";
+                }, 1200);
+
+            } catch (err) {
+                feedback.className = "text-xs p-3 rounded-lg font-mono bg-red-500/10 border border-red-500/20 text-red-400";
+                feedback.innerText = err.message;
+                submitBtn.disabled = false;
+                btnText.innerText = "Scan Key & Detect Tier Plan";
+            }
+        }
+
+        function applyTierConfiguration(tier) {
+            const maxCap = TIER_LIMITS[tier] || 5;
+            document.getElementById('activeTierDisplay').innerText = `${tier} TIER`;
+            document.getElementById('tierCapBadge').innerText = `Max: ${maxCap}`;
+
+            const slider = document.getElementById('limit');
+            slider.max = maxCap;
+            slider.value = Math.min(parseInt(slider.value), maxCap);
+            document.getElementById('limitValue').innerText = slider.value;
+            document.getElementById('limitWarning').innerText = `Locked to ${tier} maximum capacity (${maxCap}).`;
+        }
+
+        function onLimitSliderChange(val) {
+            const maxCap = TIER_LIMITS[activeTier] || 5;
+            if (parseInt(val) > maxCap) {
+                document.getElementById('limit').value = maxCap;
+                document.getElementById('limitValue').innerText = maxCap;
+            } else {
+                document.getElementById('limitValue').innerText = val;
+            }
+        }
+
+        function handleTypeChange() {
+            const type = document.getElementById('trendType').value;
+            const countrySelect = document.getElementById('countrySelect');
+            const p90 = document.getElementById('period90');
+
+            const currentSelectedCountry = countrySelect.value;
+            countrySelect.innerHTML = '';
+
+            const allowedList = type === 'videos' ? VIDEO_COUNTRIES : HASHTAG_COUNTRIES;
+            allowedList.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.innerText = c;
+                countrySelect.appendChild(opt);
+            });
+
+            if (allowedList.includes(currentSelectedCountry)) {
+                countrySelect.value = currentSelectedCountry;
+            } else {
+                countrySelect.value = 'US';
+            }
+
+            if (type === 'videos') {
+                p90.disabled = true;
+                if (currentPeriod === '90') setPeriod('7');
+                p90.classList.add('opacity-30', 'cursor-not-allowed');
+            } else {
+                p90.disabled = false;
+                p90.classList.remove('opacity-30', 'cursor-not-allowed');
+            }
+        }
+
+        function setPeriod(val) {
+            currentPeriod = val;
+            document.getElementById('period').value = val;
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                if (btn.dataset.val === val) {
+                    btn.classList.replace('text-zinc-400', 'text-white');
+                    btn.classList.add('bg-borderMain');
+                } else {
+                    btn.classList.replace('text-white', 'text-zinc-400');
+                    btn.classList.remove('bg-borderMain');
+                }
+            });
+        }
+
+        function toggleView() {
+            currentView = currentView === 'clean' ? 'code' : 'clean';
+            document.getElementById('stateClean').classList.toggle('hidden', currentView !== 'clean');
+            document.getElementById('stateCode').classList.toggle('hidden', currentView !== 'code');
+            document.getElementById('toggleText').innerText = currentView === 'clean' ? 'Switch to Pure Code' : 'Switch to Clean View';
+        }
+
+        async function executeEngine() {
+            if (!userApiKey && !ghlToken) {
+                openAuthModal();
+                return;
+            }
+
+            const payload = {
+                trend_type: document.getElementById('trendType').value,
+                period: document.getElementById('period').value,
+                limit: parseInt(document.getElementById('limit').value),
+                country: document.getElementById('countrySelect').value
+            };
+
+            const maxCap = TIER_LIMITS[activeTier] || 5;
+            if (payload.limit > maxCap) {
+                payload.limit = maxCap;
+            }
+
+            ['stateEmpty', 'stateClean', 'stateCode'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById('toggleViewBtn').classList.add('hidden');
+            document.getElementById('executeBtn').disabled = true;
+
+            document.getElementById('stateLoading').classList.remove('hidden');
+            document.getElementById('statusIndicator').className = 'w-2 h-2 rounded-full bg-yellow-500 animate-pulse';
+            document.getElementById('statusText').innerText = 'Querying TikTok Analytics...';
+
+            const url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
+            
+            // Build headers based on active auth provider
+            const requestHeaders = {
+                'x-rapidapi-host': API_HOST,
+                'x-rapidapi-key': userApiKey || 'ghl_passthrough_key'
+            };
+            if (authProvider === 'ghl' && ghlToken) {
+                requestHeaders['Authorization'] = `Bearer ${ghlToken}`;
+            }
+
+            // Fire API request in parallel with the 11-second progress bar
+            const fetchPromise = fetch(url, {
+                headers: requestHeaders
+            }).then(async res => {
+                if (!res.ok) throw new Error(`API Error HTTP ${res.status}`);
+                return await res.json();
+            });
+
+            // 11-Second Progress Ticker (11,000ms total duration)
+            const totalDuration = 11000;
+            const stepInterval = 100;
+            const steps = totalDuration / stepInterval;
+            let currentStep = 0;
+
+            const progressTimer = setInterval(() => {
+                currentStep++;
+                const percentage = Math.min(Math.round((currentStep / steps) * 100), 99);
+                
+                document.getElementById('loadBar').style.width = percentage + '%';
+                document.getElementById('loadPercent').innerText = percentage + '%';
+
+                if (percentage < 30) {
+                    document.getElementById('loadStep').innerText = "Establishing secure proxy pipeline...";
+                } else if (percentage < 60) {
+                    document.getElementById('loadStep').innerText = "Querying live TikTok dataset & creator matrices...";
+                } else if (percentage < 90) {
+                    document.getElementById('loadStep').innerText = "Parsing analytics payload & validating schemas...";
+                } else {
+                    document.getElementById('loadStep').innerText = "Finalizing dashboard layout rendering...";
+                }
+            }, stepInterval);
+
+            try {
+                // Await both the API payload and the 11-second timer completion
+                const [data] = await Promise.all([
+                    fetchPromise,
+                    new Promise(resolve => setTimeout(resolve, totalDuration))
+                ]);
+
+                clearInterval(progressTimer);
+                document.getElementById('loadBar').style.width = '100%';
+                document.getElementById('loadPercent').innerText = '100%';
+
+                rawData = data;
+
+                renderCleanData(rawData);
+                document.getElementById('codeContent').textContent = JSON.stringify(rawData, null, 2);
+
+                document.getElementById('stateLoading').classList.add('hidden');
+                document.getElementById('toggleViewBtn').classList.remove('hidden');
+                document.getElementById('executeBtn').disabled = false;
+                document.getElementById('statusIndicator').className = 'w-2 h-2 rounded-full bg-green-500';
+                document.getElementById('statusText').innerText = 'Live Feed Synced';
+
+                document.getElementById(currentView === 'clean' ? 'stateClean' : 'stateCode').classList.remove('hidden');
+
+            } catch (err) {
+                clearInterval(progressTimer);
+                alert("Execution Error: " + err.message);
+                document.getElementById('stateLoading').classList.add('hidden');
+                document.getElementById('executeBtn').disabled = false;
+                document.getElementById('statusIndicator').className = 'w-2 h-2 rounded-full bg-red-500';
+                document.getElementById('statusText').innerText = 'Query Failed';
+            }
+        }
+
+        function renderCleanData(res) {
+            const container = document.getElementById('stateClean');
+            container.innerHTML = '';
+
+            const items = res.data || [];
+            if (items.length === 0) {
+                container.innerHTML = `<div class="text-center text-xs text-zinc-500 py-8">No results found for this selection.</div>`;
+                return;
+            }
+
+            items.forEach((item) => {
+                const card = document.createElement('div');
+                card.className = "bg-bgPanel border border-borderMain rounded-lg p-4 relative overflow-hidden shadow-sm";
+
+                const rank = item.Rank || item.rank || '#';
+                const tag = item.Hashtag || item.hashtag || item.title || 'Trend Item';
+                const views = item["Video Views"] ? Number(item["Video Views"]).toLocaleString() : (item.views || 'N/A');
+                const posts = item.Posts ? Number(item.Posts).toLocaleString() : (item.posts || 'N/A');
+                const country = item.Country || item["Country Code"] || 'US';
+                const direction = item["Trend Direction"] || 'up';
+
+                let creatorsHTML = '';
+                if (item["Top Creators"] && item["Top Creators"].length > 0) {
+                    creatorsHTML = `
+                        <div class="mt-3 pt-3 border-t border-borderMain">
+                            <p class="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-2">Top Creators</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                ${item["Top Creators"].map(c => `
+                                    <div class="flex items-center gap-2 bg-bgMain p-2 rounded-md border border-borderMain/50">
+                                        <div class="w-6 h-6 rounded-full bg-accent/20 text-accent font-bold text-[10px] flex items-center justify-center">
+                                            ${c.nickname ? c.nickname.charAt(0) : '@'}
+                                        </div>
+                                        <div class="overflow-hidden">
+                                            <p class="text-xs font-medium text-white truncate">${c.nickname || c.handle}</p>
+                                            <p class="text-[10px] text-zinc-500 font-mono">${c.followers ? Number(c.followers).toLocaleString() + ' followers' : c.handle}</p>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = `
+                    <div class="absolute top-0 left-0 w-1 h-full bg-accent"></div>
+                    <div class="pl-2">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-mono font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-md">#${rank}</span>
+                                <h3 class="text-base font-bold text-white tracking-tight">${tag}</h3>
+                            </div>
+                            <span class="text-[10px] font-mono text-green-400 bg-green-400/10 px-2 py-0.5 rounded-md uppercase">Trend: ${direction}</span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 bg-bgMain p-2.5 rounded-md border border-borderMain/50 text-xs my-2">
+                            <div>
+                                <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Posts</p>
+                                <p class="font-mono text-zinc-200 mt-0.5">${posts}</p>
+                            </div>
+                            <div>
+                                <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Video Views</p>
+                                <p class="font-mono text-zinc-200 mt-0.5">${views}</p>
+                            </div>
+                            <div>
+                                <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Country</p>
+                                <p class="font-mono text-zinc-200 mt-0.5">${country}</p>
+                            </div>
+                        </div>
+
+                        ${creatorsHTML}
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+    </script>
 </body>
 </html>
