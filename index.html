@@ -193,9 +193,18 @@
         let currentView = 'clean';
         let rawData = null;
 
-        window.onload = () => {
+        window.onload = async () => {
             handleTypeChange();
-            if (userApiKey) {
+
+            // GoHighLevel URL parameter extraction (e.g. ?key=YOUR_KEY or ?api_key=YOUR_KEY)
+            const urlParams = new URLSearchParams(window.location.search);
+            const ghlKey = urlParams.get('key') || urlParams.get('api_key') || urlParams.get('rapidapi_key');
+
+            if (ghlKey) {
+                userApiKey = ghlKey;
+                document.getElementById('apiKeyInput').value = userApiKey;
+                await scanAndAuthenticateKey(null, userApiKey);
+            } else if (userApiKey) {
                 document.getElementById('apiKeyInput').value = userApiKey;
                 applyTierConfiguration(activeTier);
             } else {
@@ -207,9 +216,9 @@
             document.getElementById('authModal').classList.remove('hidden');
         }
 
-        async function scanAndAuthenticateKey(e) {
-            e.preventDefault();
-            const inputKey = document.getElementById('apiKeyInput').value.trim();
+        async function scanAndAuthenticateKey(e, directKey = null) {
+            if (e) e.preventDefault();
+            const inputKey = directKey || document.getElementById('apiKeyInput').value.trim();
             const feedback = document.getElementById('authFeedback');
             const submitBtn = document.getElementById('authSubmitBtn');
             const btnText = document.getElementById('authBtnText');
@@ -279,6 +288,7 @@
                 feedback.innerText = err.message;
                 submitBtn.disabled = false;
                 btnText.innerText = "Scan Key & Detect Tier Plan";
+                if (directKey) openAuthModal();
             }
         }
 
