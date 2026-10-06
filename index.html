@@ -35,21 +35,15 @@
 </head>
 <body class="flex h-screen overflow-hidden antialiased selection:bg-accent selection:text-white">
 
-    <!-- AUTHENTICATION & AUTOMATIC TIER SCANNER MODAL -->
+    <!-- AUTHENTICATION MODAL -->
     <div id="authModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
         <div class="bg-bgPanel border border-borderMain rounded-xl max-w-md w-full p-6 shadow-2xl space-y-5">
             <div class="flex items-center gap-3 border-b border-borderMain pb-4">
                 <div id="authPulse" class="w-3 h-3 rounded-full bg-accent animate-pulse"></div>
                 <div>
                     <h2 class="text-base font-semibold text-white">Analytics Authentication</h2>
-                    <p class="text-xs text-zinc-400">Authenticate via RapidAPI or GoHighLevel</p>
+                    <p class="text-xs text-zinc-400">Sync rapid key or authenticate GHL sub-account</p>
                 </div>
-            </div>
-
-            <!-- TAB SWITCHER -->
-            <div class="flex bg-bgMain p-1 rounded-lg border border-borderMain gap-1">
-                <button type="button" id="tabBtnRapid" onclick="switchAuthTab('rapid')" class="flex-1 py-1.5 text-xs rounded-md bg-borderMain text-white font-medium transition-all">RapidAPI Key</button>
-                <button type="button" id="tabBtnGhl" onclick="switchAuthTab('ghl')" class="flex-1 py-1.5 text-xs rounded-md text-zinc-400 hover:text-white font-medium transition-all">GoHighLevel SSO</button>
             </div>
 
             <!-- RAPIDAPI FORM -->
@@ -59,35 +53,20 @@
                     <input type="password" id="apiKeyInput" placeholder="Paste x-rapidapi-key hash here..." class="w-full bg-bgMain border border-borderMain rounded-lg px-3.5 py-2.5 text-xs font-mono text-zinc-200 focus:outline-none focus:border-accent transition-colors">
                 </div>
 
+                <div>
+                    <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider block mb-1">GHL Plan Tier Selection</label>
+                    <select id="ghlPlanSelector" class="w-full bg-bgMain border border-borderMain rounded-lg px-3.5 py-2.5 text-xs font-mono text-zinc-200 focus:outline-none focus:border-accent">
+                        <option value="BASIC">BASIC ($0/mo) - Max 5 Results</option>
+                        <option value="PRO">PRO ($99/mo) - Max 25 Results</option>
+                        <option value="ULTRA">ULTRA ($249/mo) - Max 50 Results</option>
+                        <option value="MEGA">MEGA ($1999/mo) - Max 150 Results</option>
+                    </select>
+                </div>
+
                 <div id="authFeedback" class="hidden text-xs p-3 rounded-lg font-mono"></div>
 
                 <button type="submit" id="authSubmitBtn" class="w-full bg-accent hover:bg-accentHover text-white text-xs font-semibold py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] flex justify-center items-center gap-2">
-                    <span id="authBtnText">Scan Key & Detect Tier Plan</span>
-                </button>
-            </form>
-
-            <!-- GOHIGHLEVEL FORM -->
-            <form id="ghlAuthForm" onsubmit="authenticateGHL(event)" class="space-y-4 hidden">
-                <div class="space-y-3">
-                    <div>
-                        <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider block mb-1">GHL Location ID / Location API Key</label>
-                        <input type="password" id="ghlKeyInput" placeholder="Paste GHL Location API Key..." class="w-full bg-bgMain border border-borderMain rounded-lg px-3.5 py-2.5 text-xs font-mono text-zinc-200 focus:outline-none focus:border-accent transition-colors">
-                    </div>
-                    <div class="relative flex py-1 items-center">
-                        <div class="flex-grow border-t border-borderMain"></div>
-                        <span class="flex-shrink mx-2 text-[10px] text-zinc-500 uppercase tracking-widest font-mono">OR</span>
-                        <div class="flex-grow border-t border-borderMain"></div>
-                    </div>
-                    <button type="button" onclick="connectGHLOAuth()" class="w-full bg-bgMain hover:bg-zinc-800 border border-borderMain text-zinc-200 text-xs font-semibold py-2.5 rounded-lg transition-all flex justify-center items-center gap-2">
-                        <svg class="w-4 h-4 text-accent" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>
-                        <span>Connect with GoHighLevel OAuth</span>
-                    </button>
-                </div>
-
-                <div id="ghlFeedback" class="hidden text-xs p-3 rounded-lg font-mono"></div>
-
-                <button type="submit" id="ghlSubmitBtn" class="w-full bg-accent hover:bg-accentHover text-white text-xs font-semibold py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] flex justify-center items-center gap-2">
-                    <span id="ghlBtnText">Authenticate GHL Account</span>
+                    <span id="authBtnText">Authenticate & Initialize Plan</span>
                 </button>
             </form>
         </div>
@@ -110,7 +89,7 @@
             <!-- Active Plan Badge -->
             <div class="bg-bgMain border border-borderMain rounded-lg p-3 flex items-center justify-between">
                 <div>
-                    <p class="text-[9px] text-zinc-500 uppercase font-semibold">Detected Plan</p>
+                    <p class="text-[9px] text-zinc-500 uppercase font-semibold">Active Plan</p>
                     <p id="activeTierDisplay" class="text-xs font-bold text-accent">UNVERIFIED</p>
                 </div>
                 <span id="tierCapBadge" class="text-[10px] font-mono text-zinc-300 bg-borderMain px-2 py-1 rounded-md">Max: --</span>
@@ -142,7 +121,7 @@
                 <input type="hidden" id="period" value="7">
             </div>
 
-            <!-- Limit Control (Locked to Detected Plan Max) -->
+            <!-- Limit Control -->
             <div class="space-y-2 pt-1">
                 <div class="flex justify-between items-center">
                     <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Return Limit</label>
@@ -203,7 +182,7 @@
                 <div class="bg-bgPanel border border-borderMain rounded-lg h-full overflow-hidden flex flex-col">
                     <div class="bg-bgMain border-b border-borderMain px-4 py-2 flex justify-between items-center text-[11px] font-mono">
                         <span class="text-zinc-500">RAW_JSON_PAYLOAD</span>
-                        <span class="text-green-400">200 OK</span>
+                        <span id="httpStatusBadge" class="text-green-400">200 OK</span>
                     </div>
                     <pre class="p-4 text-xs font-mono text-zinc-300 overflow-auto flex-1"><code id="codeContent"></code></pre>
                 </div>
@@ -212,7 +191,14 @@
     </main>
 
     <script>
-        const TIER_LIMITS = { BASIC: 5, PRO: 25, ULTRA: 50, MEGA: 150 };
+        // Exact GHL Plan Definitions
+        const GHL_PLANS = {
+            'BASIC': { id: '6ac3d6fed79f3f42b7ce2273', maxLimit: 5, price: '$0' },
+            'PRO': { id: '6ac3d79cd79f3f42b7ce9e44', maxLimit: 25, price: '$99' },
+            'ULTRA': { id: '6ac3d9bc640a4d109db67daf', maxLimit: 50, price: '$249' },
+            'MEGA': { id: '6ac3dac4d79f3f42b7d13b72', maxLimit: 150, price: '$1999' }
+        };
+
         const HASHTAG_COUNTRIES = ["US", "FR", "DE", "IT", "ES", "GB", "AR", "AU", "BR", "CA", "CO", "EG", "ID", "IL", "JP", "KR", "MY", "MX", "PH", "SA", "SG", "ZA", "TW", "TH", "TR", "AE", "VN"];
         const VIDEO_COUNTRIES = ["US", "JP", "VN", "TH", "ID"];
 
@@ -221,17 +207,25 @@
 
         let activeTier = localStorage.getItem('ghl_tier') || 'BASIC';
         let userApiKey = localStorage.getItem('ghl_api_key') || '';
-        let authProvider = localStorage.getItem('ghl_auth_provider') || 'rapid';
-        let ghlToken = localStorage.getItem('ghl_access_token') || '';
         let currentPeriod = '7';
         let currentView = 'clean';
         let rawData = null;
 
         window.onload = () => {
             handleTypeChange();
-            if (userApiKey || ghlToken) {
-                if (userApiKey) document.getElementById('apiKeyInput').value = userApiKey;
-                if (ghlToken) document.getElementById('ghlKeyInput').value = ghlToken;
+            
+            // Check if embedded in GoHighLevel with URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const ghlPlanParam = urlParams.get('plan') || urlParams.get('tier');
+            
+            if (ghlPlanParam && GHL_PLANS[ghlPlanParam.toUpperCase()]) {
+                activeTier = ghlPlanParam.toUpperCase();
+                localStorage.setItem('ghl_tier', activeTier);
+            }
+
+            if (userApiKey) {
+                document.getElementById('apiKeyInput').value = userApiKey;
+                document.getElementById('ghlPlanSelector').value = activeTier;
                 applyTierConfiguration(activeTier);
             } else {
                 openAuthModal();
@@ -242,168 +236,54 @@
             document.getElementById('authModal').classList.remove('hidden');
         }
 
-        function switchAuthTab(type) {
-            authProvider = type;
-            const tabRapid = document.getElementById('tabBtnRapid');
-            const tabGhl = document.getElementById('tabBtnGhl');
-            const formRapid = document.getElementById('rapidAuthForm');
-            const formGhl = document.getElementById('ghlAuthForm');
-
-            if (type === 'rapid') {
-                tabRapid.className = "flex-1 py-1.5 text-xs rounded-md bg-borderMain text-white font-medium transition-all";
-                tabGhl.className = "flex-1 py-1.5 text-xs rounded-md text-zinc-400 hover:text-white font-medium transition-all";
-                formRapid.classList.remove('hidden');
-                formGhl.classList.add('hidden');
-            } else {
-                tabGhl.className = "flex-1 py-1.5 text-xs rounded-md bg-borderMain text-white font-medium transition-all";
-                tabRapid.className = "flex-1 py-1.5 text-xs rounded-md text-zinc-400 hover:text-white font-medium transition-all";
-                formGhl.classList.remove('hidden');
-                formRapid.classList.add('hidden');
-            }
-        }
-
-        async function authenticateGHL(e) {
+        function scanAndAuthenticateKey(e) {
             e.preventDefault();
-            const inputKey = document.getElementById('ghlKeyInput').value.trim();
-            const feedback = document.getElementById('ghlFeedback');
-            const submitBtn = document.getElementById('ghlSubmitBtn');
-            const btnText = document.getElementById('ghlBtnText');
+            const inputKey = document.getElementById('apiKeyInput').value.trim();
+            const selectedTier = document.getElementById('ghlPlanSelector').value;
+            const feedback = document.getElementById('authFeedback');
 
             if (!inputKey) {
                 feedback.className = "text-xs p-3 rounded-lg font-mono bg-red-500/10 border border-red-500/20 text-red-400";
-                feedback.innerText = "Please provide a GoHighLevel Location Key or OAuth Token.";
+                feedback.innerText = "Error: RapidAPI Key is required.";
                 feedback.classList.remove('hidden');
                 return;
             }
 
-            feedback.className = "text-xs p-3 rounded-lg font-mono bg-yellow-500/10 border border-yellow-500/20 text-yellow-400";
-            feedback.innerText = "Authenticating GoHighLevel session & location tier...";
+            userApiKey = inputKey;
+            activeTier = selectedTier;
+            
+            localStorage.setItem('ghl_api_key', userApiKey);
+            localStorage.setItem('ghl_tier', activeTier);
+
+            applyTierConfiguration(activeTier);
+
+            feedback.className = "text-xs p-3 rounded-lg font-mono bg-green-500/10 border border-green-500/20 text-green-400";
+            feedback.innerText = `Authenticated! Plan set to ${activeTier} (${GHL_PLANS[activeTier].maxLimit} max results)`;
             feedback.classList.remove('hidden');
-            submitBtn.disabled = true;
-            btnText.innerText = "Connecting GHL...";
 
             setTimeout(() => {
-                ghlToken = inputKey;
-                activeTier = 'PRO';
-                localStorage.setItem('ghl_access_token', ghlToken);
-                localStorage.setItem('ghl_auth_provider', 'ghl');
-                localStorage.setItem('ghl_tier', activeTier);
-
-                applyTierConfiguration(activeTier);
-
-                feedback.className = "text-xs p-3 rounded-lg font-mono bg-green-500/10 border border-green-500/20 text-green-400";
-                feedback.innerText = `GHL Connected! Assigned Tier: ${activeTier} (${TIER_LIMITS[activeTier]} max items/call)`;
-
-                setTimeout(() => {
-                    document.getElementById('authModal').classList.add('hidden');
-                    feedback.classList.add('hidden');
-                    submitBtn.disabled = false;
-                    btnText.innerText = "Authenticate GHL Account";
-                }, 1200);
+                document.getElementById('authModal').classList.add('hidden');
+                feedback.classList.add('hidden');
             }, 1000);
         }
 
-        function connectGHLOAuth() {
-            const feedback = document.getElementById('ghlFeedback');
-            feedback.className = "text-xs p-3 rounded-lg font-mono bg-yellow-500/10 border border-yellow-500/20 text-yellow-400";
-            feedback.innerText = "Redirecting to GoHighLevel OAuth authorization portal...";
-            feedback.classList.remove('hidden');
-
-            setTimeout(() => {
-                alert("Redirecting to GHL OAuth Marketplace Login (Configure your Client ID redirect URL in backend settings).");
-            }, 600);
-        }
-
-        async function scanAndAuthenticateKey(e) {
-            e.preventDefault();
-            const inputKey = document.getElementById('apiKeyInput').value.trim();
-            const feedback = document.getElementById('authFeedback');
-            const submitBtn = document.getElementById('authSubmitBtn');
-            const btnText = document.getElementById('authBtnText');
-
-            feedback.className = "text-xs p-3 rounded-lg font-mono bg-yellow-500/10 border border-yellow-500/20 text-yellow-400";
-            feedback.innerText = "Pinging RapidAPI gateway to inspect plan header limits...";
-            feedback.classList.remove('hidden');
-            submitBtn.disabled = true;
-            btnText.innerText = "Analyzing Plan Limits...";
-
-            try {
-                // Test ping handshake call
-                const res = await fetch(`${API_URL}?trend_type=hashtags&period=7&limit=1&country=US`, {
-                    headers: {
-                        'x-rapidapi-host': API_HOST,
-                        'x-rapidapi-key': inputKey
-                    }
-                });
-
-                if (res.status === 401 || res.status === 403) {
-                    throw new Error("Invalid RapidAPI Key! Gateway refused request.");
-                }
-
-                if (!res.ok) {
-                    throw new Error(`RapidAPI Gateway Error (Status: ${res.status})`);
-                }
-
-                // Read monthly request quota limit from response headers
-                const monthlyLimitHeader = res.headers.get('x-ratelimit-requests-limit');
-                let detectedTier = 'BASIC';
-
-                if (monthlyLimitHeader) {
-                    const totalQuota = parseInt(monthlyLimitHeader, 10);
-                    if (totalQuota >= 5000) {
-                        detectedTier = 'MEGA';
-                    } else if (totalQuota >= 1500) {
-                        detectedTier = 'ULTRA';
-                    } else if (totalQuota >= 750) {
-                        detectedTier = 'PRO';
-                    } else {
-                        detectedTier = 'BASIC';
-                    }
-                } else {
-                    // Fallback detection if header is hidden by CORS policies
-                    detectedTier = 'BASIC';
-                }
-
-                userApiKey = inputKey;
-                activeTier = detectedTier;
-                localStorage.setItem('ghl_api_key', userApiKey);
-                localStorage.setItem('ghl_auth_provider', 'rapid');
-                localStorage.setItem('ghl_tier', activeTier);
-
-                applyTierConfiguration(activeTier);
-
-                feedback.className = "text-xs p-3 rounded-lg font-mono bg-green-500/10 border border-green-500/20 text-green-400";
-                feedback.innerText = `Key Verified! Detected Plan: ${activeTier} (${TIER_LIMITS[activeTier]} max items/call)`;
-
-                setTimeout(() => {
-                    document.getElementById('authModal').classList.add('hidden');
-                    feedback.classList.add('hidden');
-                    submitBtn.disabled = false;
-                    btnText.innerText = "Scan Key & Detect Tier Plan";
-                }, 1200);
-
-            } catch (err) {
-                feedback.className = "text-xs p-3 rounded-lg font-mono bg-red-500/10 border border-red-500/20 text-red-400";
-                feedback.innerText = err.message;
-                submitBtn.disabled = false;
-                btnText.innerText = "Scan Key & Detect Tier Plan";
-            }
-        }
-
         function applyTierConfiguration(tier) {
-            const maxCap = TIER_LIMITS[tier] || 5;
-            document.getElementById('activeTierDisplay').innerText = `${tier} TIER`;
+            const planConfig = GHL_PLANS[tier] || GHL_PLANS.BASIC;
+            const maxCap = planConfig.maxLimit;
+            
+            document.getElementById('activeTierDisplay').innerText = `${tier} PLAN`;
             document.getElementById('tierCapBadge').innerText = `Max: ${maxCap}`;
 
             const slider = document.getElementById('limit');
             slider.max = maxCap;
             slider.value = Math.min(parseInt(slider.value), maxCap);
             document.getElementById('limitValue').innerText = slider.value;
-            document.getElementById('limitWarning').innerText = `Locked to ${tier} maximum capacity (${maxCap}).`;
+            document.getElementById('limitWarning').innerText = `Locked to ${tier} tier max limit (${maxCap}).`;
         }
 
         function onLimitSliderChange(val) {
-            const maxCap = TIER_LIMITS[activeTier] || 5;
+            const planConfig = GHL_PLANS[activeTier] || GHL_PLANS.BASIC;
+            const maxCap = planConfig.maxLimit;
             if (parseInt(val) > maxCap) {
                 document.getElementById('limit').value = maxCap;
                 document.getElementById('limitValue').innerText = maxCap;
@@ -466,7 +346,7 @@
         }
 
         async function executeEngine() {
-            if (!userApiKey && !ghlToken) {
+            if (!userApiKey) {
                 openAuthModal();
                 return;
             }
@@ -478,10 +358,8 @@
                 country: document.getElementById('countrySelect').value
             };
 
-            const maxCap = TIER_LIMITS[activeTier] || 5;
-            if (payload.limit > maxCap) {
-                payload.limit = maxCap;
-            }
+            const maxCap = GHL_PLANS[activeTier] ? GHL_PLANS[activeTier].maxLimit : 5;
+            if (payload.limit > maxCap) payload.limit = maxCap;
 
             ['stateEmpty', 'stateClean', 'stateCode'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById('toggleViewBtn').classList.add('hidden');
@@ -493,24 +371,20 @@
 
             const url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
             
-            // Build headers based on active auth provider
-            const requestHeaders = {
-                'x-rapidapi-host': API_HOST,
-                'x-rapidapi-key': userApiKey || 'ghl_passthrough_key'
-            };
-            if (authProvider === 'ghl' && ghlToken) {
-                requestHeaders['Authorization'] = `Bearer ${ghlToken}`;
-            }
-
-            // Fire API request in parallel with the 11-second progress bar
             const fetchPromise = fetch(url, {
-                headers: requestHeaders
+                headers: {
+                    'x-rapidapi-host': API_HOST,
+                    'x-rapidapi-key': userApiKey
+                }
             }).then(async res => {
+                if (res.status === 429) {
+                    throw new Error("HTTP 429: Too Many Requests (Rate Limit / Quota Exceeded on RapidAPI key)");
+                }
                 if (!res.ok) throw new Error(`API Error HTTP ${res.status}`);
                 return await res.json();
             });
 
-            // 11-Second Progress Ticker (11,000ms total duration)
+            // 11-Second Progress Ticker Animation
             const totalDuration = 11000;
             const stepInterval = 100;
             const steps = totalDuration / stepInterval;
@@ -524,18 +398,17 @@
                 document.getElementById('loadPercent').innerText = percentage + '%';
 
                 if (percentage < 30) {
-                    document.getElementById('loadStep').innerText = "Establishing secure proxy pipeline...";
+                    document.getElementById('loadStep').innerText = "Establishing proxy pipeline...";
                 } else if (percentage < 60) {
-                    document.getElementById('loadStep').innerText = "Querying live TikTok dataset & creator matrices...";
+                    document.getElementById('loadStep').innerText = "Querying TikTok datasets...";
                 } else if (percentage < 90) {
-                    document.getElementById('loadStep').innerText = "Parsing analytics payload & validating schemas...";
+                    document.getElementById('loadStep').innerText = "Parsing payload & validating schemas...";
                 } else {
-                    document.getElementById('loadStep').innerText = "Finalizing dashboard layout rendering...";
+                    document.getElementById('loadStep').innerText = "Finalizing dashboard layout...";
                 }
             }, stepInterval);
 
             try {
-                // Await both the API payload and the 11-second timer completion
                 const [data] = await Promise.all([
                     fetchPromise,
                     new Promise(resolve => setTimeout(resolve, totalDuration))
@@ -549,6 +422,8 @@
 
                 renderCleanData(rawData);
                 document.getElementById('codeContent').textContent = JSON.stringify(rawData, null, 2);
+                document.getElementById('httpStatusBadge').className = 'text-green-400';
+                document.getElementById('httpStatusBadge').innerText = '200 OK';
 
                 document.getElementById('stateLoading').classList.add('hidden');
                 document.getElementById('toggleViewBtn').classList.remove('hidden');
@@ -560,11 +435,21 @@
 
             } catch (err) {
                 clearInterval(progressTimer);
-                alert("Execution Error: " + err.message);
                 document.getElementById('stateLoading').classList.add('hidden');
                 document.getElementById('executeBtn').disabled = false;
                 document.getElementById('statusIndicator').className = 'w-2 h-2 rounded-full bg-red-500';
-                document.getElementById('statusText').innerText = 'Query Failed';
+                document.getElementById('statusText').innerText = 'Rate Limit / Request Error';
+
+                // Display Error Payload directly on workspace
+                const container = document.getElementById('stateClean');
+                container.innerHTML = `
+                    <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-5 text-center text-red-400 font-mono text-xs">
+                        <p class="font-bold text-sm mb-1">Execution Interrupted</p>
+                        <p>${err.message}</p>
+                        <p class="text-zinc-500 text-[10px] mt-2">Wait 60 seconds before executing another fetch request to reset your RapidAPI rate limits.</p>
+                    </div>
+                `;
+                container.classList.remove('hidden');
             }
         }
 
