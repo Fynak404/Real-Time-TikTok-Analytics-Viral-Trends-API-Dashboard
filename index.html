@@ -96,7 +96,6 @@
             <div class="space-y-1.5">
                 <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Country Code</label>
                 <select id="countrySelect" class="w-full bg-bgMain border border-borderMain rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none focus:border-accent">
-                    <!-- Populated dynamically via handleTypeChange() -->
                 </select>
             </div>
 
@@ -110,7 +109,7 @@
                 <input type="hidden" id="period" value="7">
             </div>
 
-            <!-- Limit Control (Locked to Detected Plan Max) -->
+            <!-- Limit Control -->
             <div class="space-y-2 pt-1">
                 <div class="flex justify-between items-center">
                     <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Return Limit</label>
@@ -157,16 +156,14 @@
                         <span id="loadPercent" class="text-accent font-bold">0%</span>
                     </div>
                     <div class="w-full h-1.5 bg-borderMain rounded-full overflow-hidden">
-                        <div id="loadBar" class="h-full bg-accent transition-all duration-300" style="width: 0%"></div>
+                        <div id="loadBar" class="h-full bg-accent transition-all duration-150" style="width: 0%"></div>
                     </div>
                     <div id="loadStep" class="mt-3 text-xs font-mono text-zinc-400 text-center animate-pulse">Initializing pipeline...</div>
                 </div>
             </div>
 
-            <!-- Structured Clean Cards -->
             <div id="stateClean" class="hidden space-y-4 max-w-5xl mx-auto pb-8"></div>
 
-            <!-- Pure Code Output -->
             <div id="stateCode" class="hidden h-full max-w-5xl mx-auto">
                 <div class="bg-bgPanel border border-borderMain rounded-lg h-full overflow-hidden flex flex-col">
                     <div class="bg-bgMain border-b border-borderMain px-4 py-2 flex justify-between items-center text-[11px] font-mono">
@@ -196,7 +193,6 @@
         window.onload = async () => {
             handleTypeChange();
 
-            // GoHighLevel URL parameter extraction (e.g. ?key=YOUR_KEY or ?api_key=YOUR_KEY)
             const urlParams = new URLSearchParams(window.location.search);
             const ghlKey = urlParams.get('key') || urlParams.get('api_key') || urlParams.get('rapidapi_key');
 
@@ -224,13 +220,12 @@
             const btnText = document.getElementById('authBtnText');
 
             feedback.className = "text-xs p-3 rounded-lg font-mono bg-yellow-500/10 border border-yellow-500/20 text-yellow-400";
-            feedback.innerText = "Pinging RapidAPI gateway to inspect plan header limits...";
+            feedback.innerText = "Pinging RapidAPI gateway to inspect plan limits...";
             feedback.classList.remove('hidden');
             submitBtn.disabled = true;
             btnText.innerText = "Analyzing Plan Limits...";
 
             try {
-                // Test ping handshake call
                 const res = await fetch(`${API_URL}?trend_type=hashtags&period=7&limit=1&country=US`, {
                     headers: {
                         'x-rapidapi-host': API_HOST,
@@ -246,24 +241,14 @@
                     throw new Error(`RapidAPI Gateway Error (Status: ${res.status})`);
                 }
 
-                // Read monthly request quota limit from response headers
                 const monthlyLimitHeader = res.headers.get('x-ratelimit-requests-limit');
                 let detectedTier = 'BASIC';
 
                 if (monthlyLimitHeader) {
                     const totalQuota = parseInt(monthlyLimitHeader, 10);
-                    if (totalQuota >= 5000) {
-                        detectedTier = 'MEGA';
-                    } else if (totalQuota >= 1500) {
-                        detectedTier = 'ULTRA';
-                    } else if (totalQuota >= 750) {
-                        detectedTier = 'PRO';
-                    } else {
-                        detectedTier = 'BASIC';
-                    }
-                } else {
-                    // Fallback detection if header is hidden by CORS policies
-                    detectedTier = 'BASIC';
+                    if (totalQuota >= 5000) detectedTier = 'MEGA';
+                    else if (totalQuota >= 1500) detectedTier = 'ULTRA';
+                    else if (totalQuota >= 750) detectedTier = 'PRO';
                 }
 
                 userApiKey = inputKey;
@@ -281,7 +266,7 @@
                     feedback.classList.add('hidden');
                     submitBtn.disabled = false;
                     btnText.innerText = "Scan Key & Detect Tier Plan";
-                }, 1200);
+                }, 1000);
 
             } catch (err) {
                 feedback.className = "text-xs p-3 rounded-lg font-mono bg-red-500/10 border border-red-500/20 text-red-400";
@@ -330,11 +315,7 @@
                 countrySelect.appendChild(opt);
             });
 
-            if (allowedList.includes(currentSelectedCountry)) {
-                countrySelect.value = currentSelectedCountry;
-            } else {
-                countrySelect.value = 'US';
-            }
+            countrySelect.value = allowedList.includes(currentSelectedCountry) ? currentSelectedCountry : 'US';
 
             if (type === 'videos') {
                 p90.disabled = true;
@@ -381,9 +362,7 @@
             };
 
             const maxCap = TIER_LIMITS[activeTier] || 5;
-            if (payload.limit > maxCap) {
-                payload.limit = maxCap;
-            }
+            if (payload.limit > maxCap) payload.limit = maxCap;
 
             ['stateEmpty', 'stateClean', 'stateCode'].forEach(id => document.getElementById(id).classList.add('hidden'));
             document.getElementById('toggleViewBtn').classList.add('hidden');
@@ -393,66 +372,43 @@
             document.getElementById('statusIndicator').className = 'w-2 h-2 rounded-full bg-yellow-500 animate-pulse';
             document.getElementById('statusText').innerText = 'Querying TikTok Analytics...';
 
-            const url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
-            
-            // Fire API request in parallel with the 11-second progress bar
-            const fetchPromise = fetch(url, {
-                headers: {
-                    'x-rapidapi-host': API_HOST,
-                    'x-rapidapi-key': userApiKey
-                }
-            }).then(async res => {
-                if (!res.ok) throw new Error(`RapidAPI Error HTTP ${res.status}`);
-                return await res.json();
-            });
-
-            // 11-Second Progress Ticker (11,000ms total duration)
-            const totalDuration = 11000;
-            const stepInterval = 100;
-            const steps = totalDuration / stepInterval;
-            let currentStep = 0;
-
+            let currentProgress = 0;
             const progressTimer = setInterval(() => {
-                currentStep++;
-                const percentage = Math.min(Math.round((currentStep / steps) * 100), 99);
-                
-                document.getElementById('loadBar').style.width = percentage + '%';
-                document.getElementById('loadPercent').innerText = percentage + '%';
-
-                if (percentage < 30) {
-                    document.getElementById('loadStep').innerText = "Establishing secure proxy pipeline...";
-                } else if (percentage < 60) {
-                    document.getElementById('loadStep').innerText = "Querying live TikTok dataset & creator matrices...";
-                } else if (percentage < 90) {
-                    document.getElementById('loadStep').innerText = "Parsing analytics payload & validating schemas...";
-                } else {
-                    document.getElementById('loadStep').innerText = "Finalizing dashboard layout rendering...";
+                if (currentProgress < 90) {
+                    currentProgress += 5;
+                    document.getElementById('loadBar').style.width = currentProgress + '%';
+                    document.getElementById('loadPercent').innerText = currentProgress + '%';
                 }
-            }, stepInterval);
+            }, 100);
 
             try {
-                // Await both the API payload and the 11-second timer completion
-                const [data] = await Promise.all([
-                    fetchPromise,
-                    new Promise(resolve => setTimeout(resolve, totalDuration))
-                ]);
+                const url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
+                const res = await fetch(url, {
+                    headers: {
+                        'x-rapidapi-host': API_HOST,
+                        'x-rapidapi-key': userApiKey
+                    }
+                });
+
+                if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+                const data = await res.json();
 
                 clearInterval(progressTimer);
                 document.getElementById('loadBar').style.width = '100%';
                 document.getElementById('loadPercent').innerText = '100%';
 
                 rawData = data;
-
                 renderCleanData(rawData);
                 document.getElementById('codeContent').textContent = JSON.stringify(rawData, null, 2);
 
-                document.getElementById('stateLoading').classList.add('hidden');
-                document.getElementById('toggleViewBtn').classList.remove('hidden');
-                document.getElementById('executeBtn').disabled = false;
-                document.getElementById('statusIndicator').className = 'w-2 h-2 rounded-full bg-green-500';
-                document.getElementById('statusText').innerText = 'Live Feed Synced';
-
-                document.getElementById(currentView === 'clean' ? 'stateClean' : 'stateCode').classList.remove('hidden');
+                setTimeout(() => {
+                    document.getElementById('stateLoading').classList.add('hidden');
+                    document.getElementById('toggleViewBtn').classList.remove('hidden');
+                    document.getElementById('executeBtn').disabled = false;
+                    document.getElementById('statusIndicator').className = 'w-2 h-2 rounded-full bg-green-500';
+                    document.getElementById('statusText').innerText = 'Live Feed Synced';
+                    document.getElementById(currentView === 'clean' ? 'stateClean' : 'stateCode').classList.remove('hidden');
+                }, 200);
 
             } catch (err) {
                 clearInterval(progressTimer);
@@ -478,12 +434,12 @@
                 const card = document.createElement('div');
                 card.className = "bg-bgPanel border border-borderMain rounded-lg p-4 relative overflow-hidden shadow-sm";
 
-                const rank = item.Rank || item.rank || '#';
-                const tag = item.Hashtag || item.hashtag || item.title || 'Trend Item';
-                const views = item["Video Views"] ? Number(item["Video Views"]).toLocaleString() : (item.views || 'N/A');
-                const posts = item.Posts ? Number(item.Posts).toLocaleString() : (item.posts || 'N/A');
-                const country = item.Country || item["Country Code"] || 'US';
-                const direction = item["Trend Direction"] || 'up';
+                const rank = item.Rank ?? item.rank ?? '#';
+                const tag = item.Hashtag ?? item.hashtag ?? item.title ?? 'Trend Item';
+                const views = item["Video Views"] != null ? Number(item["Video Views"]).toLocaleString() : (item.views ?? 'N/A');
+                const posts = item.Posts != null ? Number(item.Posts).toLocaleString() : (item.posts ?? 'N/A');
+                const country = item.Country ?? item["Country Code"] ?? 'US';
+                const direction = item["Trend Direction"] ?? 'up';
 
                 let creatorsHTML = '';
                 if (item["Top Creators"] && item["Top Creators"].length > 0) {
@@ -498,7 +454,7 @@
                                         </div>
                                         <div class="overflow-hidden">
                                             <p class="text-xs font-medium text-white truncate">${c.nickname || c.handle}</p>
-                                            <p class="text-[10px] text-zinc-500 font-mono">${c.followers ? Number(c.followers).toLocaleString() + ' followers' : c.handle}</p>
+                                            <p class="text-[10px] text-zinc-500 font-mono">${c.followers != null ? Number(c.followers).toLocaleString() + ' followers' : (c.handle || '')}</p>
                                         </div>
                                     </div>
                                 `).join('')}
