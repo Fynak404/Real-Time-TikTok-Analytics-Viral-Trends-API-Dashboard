@@ -35,7 +35,7 @@
 </head>
 <body class="flex h-screen overflow-hidden antialiased selection:bg-accent selection:text-white">
 
-    <!-- SIMPLE AUTHENTICATION MODAL (NO BLOCKING GATEWAY CHECKS) -->
+    <!-- AUTHENTICATION MODAL -->
     <div id="authModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
         <div class="bg-bgPanel border border-borderMain rounded-xl max-w-md w-full p-6 shadow-2xl space-y-5">
             <div class="flex items-center gap-3 border-b border-borderMain pb-4">
@@ -73,13 +73,25 @@
         </div>
 
         <div class="flex-1 overflow-y-auto p-5 space-y-5">
-            <!-- Active Plan Badge -->
-            <div class="bg-bgMain border border-borderMain rounded-lg p-3 flex items-center justify-between">
-                <div>
-                    <p class="text-[9px] text-zinc-500 uppercase font-semibold">Status</p>
-                    <p id="activeTierDisplay" class="text-xs font-bold text-accent">ACTIVE KEY</p>
+            <!-- Active Plan & Request Quota Stats -->
+            <div class="bg-bgMain border border-borderMain rounded-lg p-3.5 space-y-3">
+                <div class="flex items-center justify-between border-b border-borderMain/60 pb-2">
+                    <div>
+                        <p class="text-[9px] text-zinc-500 uppercase font-semibold">Plan Name</p>
+                        <p id="activeTierDisplay" class="text-xs font-bold text-accent">ACTIVE KEY</p>
+                    </div>
+                    <span id="tierCapBadge" class="text-[10px] font-mono text-zinc-300 bg-borderMain px-2 py-0.5 rounded-md">Live</span>
                 </div>
-                <span id="tierCapBadge" class="text-[10px] font-mono text-zinc-300 bg-borderMain px-2 py-1 rounded-md">Live</span>
+
+                <div>
+                    <div class="flex justify-between text-[10px] font-mono text-zinc-400 mb-1">
+                        <span>API QUOTA / USAGE</span>
+                        <span id="quotaText" class="text-zinc-200 font-bold">-- / --</span>
+                    </div>
+                    <div class="w-full h-1.5 bg-borderMain rounded-full overflow-hidden">
+                        <div id="quotaBar" class="h-full bg-accent transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- Query Parameters -->
@@ -94,7 +106,7 @@
             <div class="space-y-1.5">
                 <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Country Code</label>
                 <select id="countrySelect" class="w-full bg-bgMain border border-borderMain rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none focus:border-accent">
-                    <!-- Populated dynamically via handleTypeChange() -->
+                    <!-- Populated dynamically -->
                 </select>
             </div>
 
@@ -276,6 +288,29 @@
             document.getElementById('toggleText').innerText = currentView === 'clean' ? 'Switch to Pure Code' : 'Switch to Clean View';
         }
 
+        function updateQuotaHeaders(headers) {
+            const plan = headers.get('x-ratelimit-requests-limit') || headers.get('x-ratelimit-subscription') || 'ACTIVE KEY';
+            const remaining = headers.get('x-ratelimit-requests-remaining');
+            const limit = headers.get('x-ratelimit-requests-limit');
+
+            if (plan) {
+                document.getElementById('activeTierDisplay').innerText = plan.toUpperCase();
+            }
+
+            if (remaining !== null && limit !== null) {
+                const rem = parseInt(remaining);
+                const lim = parseInt(limit);
+                const used = lim - rem;
+                const percentage = Math.min(100, Math.max(0, (used / lim) * 100));
+
+                document.getElementById('quotaText').innerText = `${used} / ${lim}`;
+                document.getElementById('quotaBar').style.width = percentage + '%';
+            } else {
+                document.getElementById('quotaText').innerText = 'Synced';
+                document.getElementById('quotaBar').style.width = '100%';
+            }
+        }
+
         async function executeEngine() {
             if (!userApiKey) {
                 openAuthModal();
@@ -319,6 +354,9 @@
                     throw new Error(`RapidAPI Error ${res.status}`);
                 }
 
+                // Update quota headers direct uit het live verzoek
+                updateQuotaHeaders(res.headers);
+
                 rawData = await res.json();
 
                 document.getElementById('loadBar').style.width = '100%';
@@ -353,7 +391,6 @@
                 return;
             }
 
-            // Veilig herpennen van het response type
             const isVideoData = items[0] && (items[0]["Video ID"] !== undefined || items[0]["Video Rank"] !== undefined || document.getElementById('trendType').value === 'videos');
 
             items.forEach((item) => {
