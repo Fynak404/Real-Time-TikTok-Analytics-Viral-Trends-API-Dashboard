@@ -42,7 +42,7 @@
                 <div class="w-3 h-3 rounded-full bg-accent"></div>
                 <div>
                     <h2 class="text-base font-semibold text-white">RapidAPI Authentication</h2>
-                    <p class="text-xs text-zinc-400">Enter your X-RapidAPI-Key to unlock dashboard</p>
+                    <p class="text-xs text-zinc-400">Enter your valid X-RapidAPI-Key to unlock dashboard</p>
                 </div>
             </div>
             
@@ -52,8 +52,8 @@
                     <input type="password" id="apiKeyInput" required placeholder="Paste x-rapidapi-key here..." class="w-full bg-bgMain border border-borderMain rounded-lg px-3.5 py-2.5 text-xs font-mono text-zinc-200 focus:outline-none focus:border-accent transition-colors">
                 </div>
 
-                <button type="submit" class="w-full bg-accent hover:bg-accentHover text-white text-xs font-semibold py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] flex justify-center items-center gap-2">
-                    <span>Save Key & Access Dashboard</span>
+                <button type="submit" id="saveKeyBtn" class="w-full bg-accent hover:bg-accentHover text-white text-xs font-semibold py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] flex justify-center items-center gap-2">
+                    <span>Validate & Access Dashboard</span>
                 </button>
             </form>
         </div>
@@ -78,7 +78,7 @@
                 <div class="flex items-center justify-between border-b border-borderMain/60 pb-2">
                     <div>
                         <p class="text-[9px] text-zinc-500 uppercase font-semibold">Plan Name</p>
-                        <p id="activeTierDisplay" class="text-xs font-bold text-accent">ACTIVE KEY</p>
+                        <p id="activeTierDisplay" class="text-xs font-bold text-accent">VERIFYING...</p>
                     </div>
                     <span id="tierCapBadge" class="text-[10px] font-mono text-zinc-300 bg-borderMain px-2 py-0.5 rounded-md">Live</span>
                 </div>
@@ -143,7 +143,7 @@
         <header class="h-14 border-b border-borderMain flex items-center justify-between px-6 bg-bgMain">
             <div class="flex items-center gap-2 text-xs text-zinc-400">
                 <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
-                <span id="statusText">Key Loaded</span>
+                <span id="statusText">Key Verified</span>
             </div>
             
             <button id="toggleViewBtn" onclick="toggleView()" class="hidden text-xs px-3 py-1.5 border border-borderMain rounded-lg hover:bg-borderMain text-zinc-300 transition-colors flex items-center gap-2">
@@ -199,14 +199,13 @@
         let currentPeriod = '7';
         let currentView = 'clean';
         let rawData = null;
-        let targetNextTier = 'PRO'; // Default fallback
+        let targetNextTier = 'PRO';
 
-        window.onload = () => {
+        window.onload = async () => {
             handleTypeChange();
             if (userApiKey) {
                 document.getElementById('apiKeyInput').value = userApiKey;
-                document.getElementById('authModal').classList.add('hidden');
-                updateStatus('Key Active', 'green');
+                await validateAndLoadKey(userApiKey, true);
             } else {
                 openAuthModal();
             }
@@ -216,15 +215,57 @@
             document.getElementById('authModal').classList.remove('hidden');
         }
 
-        function saveApiKey(e) {
+        async function saveApiKey(e) {
             e.preventDefault();
             const inputKey = document.getElementById('apiKeyInput').value.trim();
             if (!inputKey) return;
 
-            userApiKey = inputKey;
-            localStorage.setItem('ghl_api_key', userApiKey);
-            document.getElementById('authModal').classList.add('hidden');
-            updateStatus('Key Saved', 'green');
+            const btn = document.getElementById('saveKeyBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<span>Validating Key with RapidAPI...</span>`;
+
+            const isValid = await validateAndLoadKey(inputKey, false);
+
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+
+            if (isValid) {
+                userApiKey = inputKey;
+                localStorage.setItem('ghl_api_key', userApiKey);
+                document.getElementById('authModal').classList.add('hidden');
+                updateStatus('Key Verified', 'green');
+            } else {
+                alert("Invalid X-RapidAPI-Key! Access denied by RapidAPI (401/403). Please enter a working key.");
+                updateStatus('Invalid Key', 'red');
+            }
+        }
+
+        async function validateAndLoadKey(key, isStartup) {
+            try {
+                const testUrl = `${API_URL}?trend_type=hashtags&period=7&limit=1&country=US`;
+                const res = await fetch(testUrl, {
+                    headers: {
+                        'x-rapidapi-host': API_HOST,
+                        'x-rapidapi-key': key
+                    }
+                });
+
+                if (res.status === 401 || res.status === 403) {
+                    if (!isStartup) {
+                        localStorage.removeItem('ghl_api_key');
+                    }
+                    return false;
+                }
+
+                updateQuotaHeaders(res.headers);
+                return true;
+            } catch (err) {
+                if (isStartup) {
+                    document.getElementById('activeTierDisplay').innerText = 'CACHED KEY';
+                }
+                return true; 
+            }
         }
 
         function updateStatus(text, color) {
@@ -293,10 +334,10 @@
             const limit = headers.get('x-ratelimit-requests-limit');
             const remaining = headers.get('x-ratelimit-requests-remaining');
             
-            // STRICTE TIER LOGICA: BASIC (10) -> PRO (750) -> ULTRA (1500) -> MEGA (5000)
+            // TIER LOGICA: BASIC (10) -> PRO (750) -> ULTRA (1500) -> MEGA (5000) -> >5000 is PRIVATE PLAN
             if (limit) {
                 const numLimit = parseInt(limit);
-                let planName = 'ACTIVE KEY';
+                let planName = 'BASIC';
                 
                 if (numLimit <= 10) {
                     planName = 'BASIC';
@@ -307,8 +348,11 @@
                 } else if (numLimit <= 1500) {
                     planName = 'ULTRA';
                     targetNextTier = 'MEGA';
-                } else {
+                } else if (numLimit <= 5000) {
                     planName = 'MEGA';
+                    targetNextTier = 'PRIVATE_PLAN';
+                } else {
+                    planName = 'PRIVATE PLAN';
                     targetNextTier = 'PRIVATE_PLAN';
                 }
 
@@ -368,8 +412,11 @@
 
                 clearInterval(progressTimer);
 
-                // Update headers (limiet & plan data)
                 updateQuotaHeaders(res.headers);
+
+                if (res.status === 401 || res.status === 403) {
+                    throw new Error('Invalid or expired RapidAPI Key');
+                }
 
                 if (res.status === 429) {
                     if (targetNextTier === 'PRIVATE_PLAN') {
@@ -427,7 +474,6 @@
                 card.className = "bg-bgPanel border border-borderMain rounded-lg p-4 relative overflow-hidden shadow-sm hover:border-zinc-700 transition-colors";
 
                 if (isVideoData) {
-                    // --- VIRAL VIDEO LAYOUT ---
                     const rank = item["Video Rank"] || item.Rank || '#';
                     const title = item.Title || 'No Title';
                     const views = item.Views !== undefined ? Number(item.Views).toLocaleString() : 'N/A';
@@ -493,7 +539,6 @@
                         </div>
                     `;
                 } else {
-                    // --- HASHTAG LAYOUT ---
                     const rank = item.Rank || item.rank || '#';
                     const tag = item.Hashtag || item.hashtag || 'Trend Item';
                     const rawViews = item["Video Views"] || item.views;
