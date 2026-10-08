@@ -110,7 +110,7 @@
                 <input type="hidden" id="period" value="7">
             </div>
 
-            <!-- Limit Control (Locked to Detected Plan Max) -->
+            <!-- Limit Control -->
             <div class="space-y-2 pt-1">
                 <div class="flex justify-between items-center">
                     <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Return Limit</label>
@@ -221,7 +221,6 @@
             btnText.innerText = "Analyzing Plan Limits...";
 
             try {
-                // Test ping handshake call
                 const res = await fetch(`${API_URL}?trend_type=hashtags&period=7&limit=1&country=US`, {
                     headers: {
                         'x-rapidapi-host': API_HOST,
@@ -237,7 +236,6 @@
                     throw new Error(`RapidAPI Gateway Error (Status: ${res.status})`);
                 }
 
-                // Read monthly request quota limit from response headers
                 const monthlyLimitHeader = res.headers.get('x-ratelimit-requests-limit');
                 let detectedTier = 'BASIC';
 
@@ -253,7 +251,6 @@
                         detectedTier = 'BASIC';
                     }
                 } else {
-                    // Fallback detection if header is hidden by CORS policies
                     detectedTier = 'BASIC';
                 }
 
@@ -385,7 +382,6 @@
 
             const url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
             
-            // Fire API request in parallel with the 11-second progress bar
             const fetchPromise = fetch(url, {
                 headers: {
                     'x-rapidapi-host': API_HOST,
@@ -396,7 +392,6 @@
                 return await res.json();
             });
 
-            // 11-Second Progress Ticker (11,000ms total duration)
             const totalDuration = 11000;
             const stepInterval = 100;
             const steps = totalDuration / stepInterval;
@@ -421,7 +416,6 @@
             }, stepInterval);
 
             try {
-                // Await both the API payload and the 11-second timer completion
                 const [data] = await Promise.all([
                     fetchPromise,
                     new Promise(resolve => setTimeout(resolve, totalDuration))
@@ -464,68 +458,140 @@
                 return;
             }
 
+            const isVideoMode = document.getElementById('trendType').value === 'videos';
+
             items.forEach((item) => {
                 const card = document.createElement('div');
-                card.className = "bg-bgPanel border border-borderMain rounded-lg p-4 relative overflow-hidden shadow-sm";
+                card.className = "bg-bgPanel border border-borderMain rounded-lg p-4 relative overflow-hidden shadow-sm hover:border-zinc-700 transition-colors";
 
-                const rank = item.Rank || item.rank || '#';
-                const tag = item.Hashtag || item.hashtag || item.title || 'Trend Item';
-                const views = item["Video Views"] ? Number(item["Video Views"]).toLocaleString() : (item.views || 'N/A');
-                const posts = item.Posts ? Number(item.Posts).toLocaleString() : (item.posts || 'N/A');
-                const country = item.Country || item["Country Code"] || 'US';
+                // Universele velden uitlezen met fallbacks voor beide schema's
+                const rank = item["Video Rank"] || item.Rank || item.rank || '#';
+                const title = item.Title || item.Hashtag || item.hashtag || 'Trend Item';
+                const viewsRaw = item.Views ?? item["Video Views"] ?? item.views;
+                const views = viewsRaw !== undefined && viewsRaw !== null ? Number(viewsRaw).toLocaleString() : 'N/A';
+                const country = item["Video Country Code"] || item.Country || item["Country Code"] || document.getElementById('countrySelect').value || 'US';
                 const direction = item["Trend Direction"] || 'up';
 
-                let creatorsHTML = '';
-                if (item["Top Creators"] && item["Top Creators"].length > 0) {
-                    creatorsHTML = `
-                        <div class="mt-3 pt-3 border-t border-borderMain">
-                            <p class="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-2">Top Creators</p>
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                ${item["Top Creators"].map(c => `
-                                    <div class="flex items-center gap-2 bg-bgMain p-2 rounded-md border border-borderMain/50">
-                                        <div class="w-6 h-6 rounded-full bg-accent/20 text-accent font-bold text-[10px] flex items-center justify-center">
-                                            ${c.nickname ? c.nickname.charAt(0) : '@'}
+                // Video specifieke velden
+                const cover = item.Cover || null;
+                const avatar = item.Avatar || null;
+                const author = item.Author || null;
+                const authorHandle = item["Author Handle"] || null;
+                const followers = item.Followers !== undefined ? Number(item.Followers).toLocaleString() : null;
+                const tiktokUrl = item["Video TikTok URL"] || null;
+                const posts = item.Posts ? Number(item.Posts).toLocaleString() : (item.posts || null);
+
+                // Bereken Engagement Rate indien aanwezig in de Metrics array
+                let engagementRate = 'N/A';
+                if (Array.isArray(item.Metrics)) {
+                    const engMetric = item.Metrics.find(m => m.metric === 'Engagement Rate');
+                    if (engMetric && engMetric.value) {
+                        engagementRate = (engMetric.value * 100).toFixed(2) + '%';
+                    }
+                }
+
+                if (isVideoMode || cover || author) {
+                    // LAYOUT VOOR VIRAL VIDEOS
+                    card.innerHTML = `
+                        <div class="absolute top-0 left-0 w-1 h-full bg-accent"></div>
+                        <div class="pl-2">
+                            <div class="flex justify-between items-center mb-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-mono font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-md">#${rank}</span>
+                                    <span class="text-[10px] font-mono text-zinc-400 bg-borderMain px-2 py-0.5 rounded-md">${country}</span>
+                                </div>
+                                ${tiktokUrl ? `<a href="${tiktokUrl}" target="_blank" rel="noopener noreferrer" class="text-[10px] font-medium text-accent hover:text-indigo-300 transition-colors flex items-center gap-1">View on TikTok ↗</a>` : ''}
+                            </div>
+
+                            <div class="flex gap-4">
+                                ${cover ? `<img src="${cover}" alt="Cover" class="w-20 h-28 object-cover rounded-md border border-borderMain shrink-0 bg-bgMain">` : ''}
+                                
+                                <div class="flex-1 min-w-0 flex flex-col justify-between">
+                                    <div>
+                                        <h3 class="text-xs text-zinc-200 line-clamp-2 font-medium mb-2 leading-relaxed" title="${title}">${title}</h3>
+                                        
+                                        ${author ? `
+                                            <div class="flex items-center gap-2 mb-2 bg-bgMain/60 p-1.5 rounded-md border border-borderMain/40 w-fit max-w-full">
+                                                ${avatar ? `<img src="${avatar}" alt="${author}" class="w-6 h-6 rounded-full object-cover shrink-0">` : `<div class="w-6 h-6 rounded-full bg-accent/20 text-accent font-bold text-[10px] flex items-center justify-center shrink-0">${author.charAt(0)}</div>`}
+                                                <div class="overflow-hidden">
+                                                    <p class="text-[11px] font-semibold text-white truncate">${author} <span class="text-zinc-500 font-normal font-mono text-[10px]">${authorHandle \vert{}\vert{} ''}</span></p>${followers ? `<p class="text-[9px] text-zinc-400 font-mono">${followers} followers</p>` : ''}
+                                                </div>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+
+                                    <div class="grid grid-cols-3 gap-2 bg-bgMain p-2 rounded-md border border-borderMain/50 text-xs">
+                                        <div>
+                                            <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Views</p>
+                                            <p class="font-mono text-zinc-200 mt-0.5 font-semibold">${views}</p>
                                         </div>
-                                        <div class="overflow-hidden">
-                                            <p class="text-xs font-medium text-white truncate">${c.nickname || c.handle}</p>
-                                            <p class="text-[10px] text-zinc-500 font-mono">${c.followers ? Number(c.followers).toLocaleString() + ' followers' : c.handle}</p>
+                                        <div>
+                                            <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Engagement</p>
+                                            <p class="font-mono text-zinc-200 mt-0.5 font-semibold">${engagementRate}</p>
+                                        </div>
+                                        <div>
+                                            <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Period</p>
+                                            <p class="font-mono text-zinc-200 mt-0.5">${item["Video Period"] || '7 days'}</p>
                                         </div>
                                     </div>
-                                `).join('')}
+                                </div>
                             </div>
                         </div>
                     `;
+                } else {
+                    // LAYOUT VOOR HASHTAGS
+                    let creatorsHTML = '';
+                    if (item["Top Creators"] && item["Top Creators"].length > 0) {
+                        creatorsHTML = `
+                            <div class="mt-3 pt-3 border-t border-borderMain">
+                                <p class="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-2">Top Creators</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    ${item["Top Creators"].map(c => `
+                                        <div class="flex items-center gap-2 bg-bgMain p-2 rounded-md border border-borderMain/50">
+                                            <div class="w-6 h-6 rounded-full bg-accent/20 text-accent font-bold text-[10px] flex items-center justify-center shrink-0">
+                                                ${c.nickname ? c.nickname.charAt(0) : '@'}
+                                            </div>
+                                            <div class="overflow-hidden">
+                                                <p class="text-xs font-medium text-white truncate">${c.nickname || c.handle}</p>
+                                                <p class="text-[10px] text-zinc-500 font-mono">${c.followers ? Number(c.followers).toLocaleString() + ' followers' : c.handle}</p>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    card.innerHTML = `
+                        <div class="absolute top-0 left-0 w-1 h-full bg-accent"></div>
+                        <div class="pl-2">
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-mono font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-md">#${rank}</span>
+                                    <h3 class="text-base font-bold text-white tracking-tight">${title}</h3>
+                                </div>
+                                <span class="text-[10px] font-mono text-green-400 bg-green-400/10 px-2 py-0.5 rounded-md uppercase">Trend: ${direction}</span>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-2 bg-bgMain p-2.5 rounded-md border border-borderMain/50 text-xs my-2">
+                                <div>
+                                    <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Posts</p>
+                                    <p class="font-mono text-zinc-200 mt-0.5">${posts || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Video Views</p>
+                                    <p class="font-mono text-zinc-200 mt-0.5">${views}</p>
+                                </div>
+                                <div>
+                                    <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Country</p>
+                                    <p class="font-mono text-zinc-200 mt-0.5">${country}</p>
+                                </div>
+                            </div>
+
+                            ${creatorsHTML}
+                        </div>
+                    `;
                 }
-
-                card.innerHTML = `
-                    <div class="absolute top-0 left-0 w-1 h-full bg-accent"></div>
-                    <div class="pl-2">
-                        <div class="flex justify-between items-start mb-2">
-                            <div class="flex items-center gap-2">
-                                <span class="text-xs font-mono font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-md">#${rank}</span>
-                                <h3 class="text-base font-bold text-white tracking-tight">${tag}</h3>
-                            </div>
-                            <span class="text-[10px] font-mono text-green-400 bg-green-400/10 px-2 py-0.5 rounded-md uppercase">Trend: ${direction}</span>
-                        </div>
-
-                        <div class="grid grid-cols-3 gap-2 bg-bgMain p-2.5 rounded-md border border-borderMain/50 text-xs my-2">
-                            <div>
-                                <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Posts</p>
-                                <p class="font-mono text-zinc-200 mt-0.5">${posts}</p>
-                            </div>
-                            <div>
-                                <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Video Views</p>
-                                <p class="font-mono text-zinc-200 mt-0.5">${views}</p>
-                            </div>
-                            <div>
-                                <p class="text-[9px] text-zinc-500 uppercase tracking-wider">Country</p>
-                                <p class="font-mono text-zinc-200 mt-0.5">${country}</p>
-                            </div>
-                        </div>
-
-                        ${creatorsHTML}
-                    </div>
-                `;
 
                 container.appendChild(card);
             });
