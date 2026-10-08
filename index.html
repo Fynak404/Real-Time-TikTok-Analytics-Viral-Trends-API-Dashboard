@@ -199,7 +199,7 @@
         let currentPeriod = '7';
         let currentView = 'clean';
         let rawData = null;
-        let targetNextTier = 'PRO'; 
+        let targetNextTier = 'PRO'; // Default fallback
 
         window.onload = () => {
             handleTypeChange();
@@ -293,7 +293,7 @@
             const limit = headers.get('x-ratelimit-requests-limit');
             const remaining = headers.get('x-ratelimit-requests-remaining');
             
-            // JUISTE TIER & LIMIT LOGICA (BASIC -> PRO -> ULTRA -> MEGA)
+            // STRICTE TIER LOGICA: BASIC (10) -> PRO (750) -> ULTRA (1500) -> MEGA (5000)
             if (limit) {
                 const numLimit = parseInt(limit);
                 let planName = 'ACTIVE KEY';
@@ -307,12 +307,9 @@
                 } else if (numLimit <= 1500) {
                     planName = 'ULTRA';
                     targetNextTier = 'MEGA';
-                } else if (numLimit <= 5000) {
-                    planName = 'MEGA';
-                    targetNextTier = 'PRIVATE';
                 } else {
-                    planName = 'CUSTOM';
-                    targetNextTier = 'PRIVATE';
+                    planName = 'MEGA';
+                    targetNextTier = 'PRIVATE_PLAN';
                 }
 
                 document.getElementById('activeTierDisplay').innerText = planName;
@@ -371,11 +368,12 @@
 
                 clearInterval(progressTimer);
 
+                // Update headers (limiet & plan data)
                 updateQuotaHeaders(res.headers);
 
                 if (res.status === 429) {
-                    if (targetNextTier === 'PRIVATE') {
-                        throw new Error(`Reached ur limit. You can Apply for a private plan with custom limits`);
+                    if (targetNextTier === 'PRIVATE_PLAN') {
+                        throw new Error(`Reached ur limit u can apply for a private plan with custom limits to continue`);
                     } else {
                         throw new Error(`Reached ur limit upgrade to ${targetNextTier} to continue`);
                     }
@@ -429,6 +427,7 @@
                 card.className = "bg-bgPanel border border-borderMain rounded-lg p-4 relative overflow-hidden shadow-sm hover:border-zinc-700 transition-colors";
 
                 if (isVideoData) {
+                    // --- VIRAL VIDEO LAYOUT ---
                     const rank = item["Video Rank"] || item.Rank || '#';
                     const title = item.Title || 'No Title';
                     const views = item.Views !== undefined ? Number(item.Views).toLocaleString() : 'N/A';
@@ -494,6 +493,7 @@
                         </div>
                     `;
                 } else {
+                    // --- HASHTAG LAYOUT ---
                     const rank = item.Rank || item.rank || '#';
                     const tag = item.Hashtag || item.hashtag || 'Trend Item';
                     const rawViews = item["Video Views"] || item.views;
