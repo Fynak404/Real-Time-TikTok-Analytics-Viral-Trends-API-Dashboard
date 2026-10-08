@@ -202,10 +202,12 @@
 
         window.onload = () => {
             handleTypeChange();
+            loadCachedQuota(); // Laad opgeslagen quota/plan direct vanuit geheugen
             if (userApiKey) {
                 document.getElementById('apiKeyInput').value = userApiKey;
                 document.getElementById('authModal').classList.add('hidden');
                 updateStatus('Key Active', 'green');
+                syncQuotaBackground(); // Achtergrond sync voor de allernieuwste stand
             } else {
                 openAuthModal();
             }
@@ -224,6 +226,7 @@
             localStorage.setItem('ghl_api_key', userApiKey);
             document.getElementById('authModal').classList.add('hidden');
             updateStatus('Key Saved', 'green');
+            syncQuotaBackground(); // Sync direct plan & usage bij het opslaan van de key
         }
 
         function updateStatus(text, color) {
@@ -288,13 +291,47 @@
             document.getElementById('toggleText').innerText = currentView === 'clean' ? 'Switch to Pure Code' : 'Switch to Clean View';
         }
 
+        // Direct inladen uit geheugen (instantly op scherm)
+        function loadCachedQuota() {
+            const cachedPlan = localStorage.getItem('ghl_api_plan');
+            const cachedQuotaText = localStorage.getItem('ghl_api_quota_text');
+            const cachedQuotaBar = localStorage.getItem('ghl_api_quota_bar');
+
+            if (cachedPlan) document.getElementById('activeTierDisplay').innerText = cachedPlan.toUpperCase();
+            if (cachedQuotaText) document.getElementById('quotaText').innerText = cachedQuotaText;
+            if (cachedQuotaBar) document.getElementById('quotaBar').style.width = cachedQuotaBar;
+        }
+
+        // Stille achtergrond fetch om direct headers op te slaan
+        async function syncQuotaBackground() {
+            if (!userApiKey) return;
+            try {
+                const res = await fetch(`${API_URL}?trend_type=hashtags&period=7&limit=1&country=US`, {
+                    headers: {
+                        'x-rapidapi-host': API_HOST,
+                        'x-rapidapi-key': userApiKey
+                    }
+                });
+                if (res.ok) {
+                    updateQuotaHeaders(res.headers);
+                }
+            } catch (e) {
+                // Stil opvangen
+            }
+        }
+
         function updateQuotaHeaders(headers) {
             const plan = headers.get('x-ratelimit-requests-limit') || headers.get('x-ratelimit-subscription') || 'ACTIVE KEY';
             const remaining = headers.get('x-ratelimit-requests-remaining');
             const limit = headers.get('x-ratelimit-requests-limit');
 
+            let planText = plan ? plan.toUpperCase() : 'ACTIVE KEY';
+            let quotaTextVal = '-- / --';
+            let percentageVal = '0%';
+
             if (plan) {
-                document.getElementById('activeTierDisplay').innerText = plan.toUpperCase();
+                document.getElementById('activeTierDisplay').innerText = planText;
+                localStorage.setItem('ghl_api_plan', planText);
             }
 
             if (remaining !== null && limit !== null) {
@@ -303,11 +340,14 @@
                 const used = lim - rem;
                 const percentage = Math.min(100, Math.max(0, (used / lim) * 100));
 
-                document.getElementById('quotaText').innerText = `${used} / ${lim}`;
-                document.getElementById('quotaBar').style.width = percentage + '%';
-            } else {
-                document.getElementById('quotaText').innerText = 'Synced';
-                document.getElementById('quotaBar').style.width = '100%';
+                quotaTextVal = `${used} / ${lim}`;
+                percentageVal = percentage + '%';
+
+                document.getElementById('quotaText').innerText = quotaTextVal;
+                document.getElementById('quotaBar').style.width = percentageVal;
+
+                localStorage.setItem('ghl_api_quota_text', quotaTextVal);
+                localStorage.setItem('ghl_api_quota_bar', percentageVal);
             }
         }
 
@@ -354,7 +394,6 @@
                     throw new Error(`RapidAPI Error ${res.status}`);
                 }
 
-                // Update quota headers direct uit het live verzoek
                 updateQuotaHeaders(res.headers);
 
                 rawData = await res.json();
