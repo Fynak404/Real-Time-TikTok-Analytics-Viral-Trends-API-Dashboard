@@ -52,7 +52,7 @@
                     <input type="password" id="apiKeyInput" required placeholder="Paste x-rapidapi-key here..." class="w-full bg-bgMain border border-borderMain rounded-lg px-3.5 py-2.5 text-xs font-mono text-zinc-200 focus:outline-none focus:border-accent transition-colors">
                 </div>
 
-                <button type="submit" class="w-full bg-accent hover:bg-accentHover text-white text-xs font-semibold py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] flex justify-center items-center gap-2">
+                <button id="authSubmitBtn" type="submit" class="w-full bg-accent hover:bg-accentHover text-white text-xs font-semibold py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(99,102,241,0.3)] flex justify-center items-center gap-2">
                     <span>Save Key & Access Dashboard</span>
                 </button>
             </form>
@@ -202,12 +202,12 @@
 
         window.onload = () => {
             handleTypeChange();
-            loadCachedQuota(); // Laad opgeslagen quota/plan direct vanuit geheugen
+            loadCachedQuota(); // Direct weergeven uit geheugen
             if (userApiKey) {
                 document.getElementById('apiKeyInput').value = userApiKey;
                 document.getElementById('authModal').classList.add('hidden');
                 updateStatus('Key Active', 'green');
-                syncQuotaBackground(); // Achtergrond sync voor de allernieuwste stand
+                syncQuotaBackground(); // Achtergrond sync voor verse data
             } else {
                 openAuthModal();
             }
@@ -217,16 +217,40 @@
             document.getElementById('authModal').classList.remove('hidden');
         }
 
-        function saveApiKey(e) {
+        async function saveApiKey(e) {
             e.preventDefault();
             const inputKey = document.getElementById('apiKeyInput').value.trim();
             if (!inputKey) return;
 
-            userApiKey = inputKey;
-            localStorage.setItem('ghl_api_key', userApiKey);
-            document.getElementById('authModal').classList.add('hidden');
-            updateStatus('Key Saved', 'green');
-            syncQuotaBackground(); // Sync direct plan & usage bij het opslaan van de key
+            const btn = document.getElementById('authSubmitBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<span>Verifying Quota...</span>';
+            btn.disabled = true;
+
+            try {
+                // Test call met limit=5 om 400 errors op de backend te voorkomen
+                const res = await fetch(`${API_URL}?trend_type=hashtags&period=7&limit=5&country=US`, {
+                    headers: {
+                        'x-rapidapi-host': API_HOST,
+                        'x-rapidapi-key': inputKey
+                    }
+                });
+
+                if (res.ok) {
+                    userApiKey = inputKey;
+                    localStorage.setItem('ghl_api_key', userApiKey);
+                    updateQuotaHeaders(res.headers);
+                    document.getElementById('authModal').classList.add('hidden');
+                    updateStatus('Key Saved', 'green');
+                } else {
+                    alert("Invalid API Key or Limit setup.");
+                }
+            } catch (err) {
+                alert("Network error. Please check your connection.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         }
 
         function updateStatus(text, color) {
@@ -291,7 +315,6 @@
             document.getElementById('toggleText').innerText = currentView === 'clean' ? 'Switch to Pure Code' : 'Switch to Clean View';
         }
 
-        // Direct inladen uit geheugen (instantly op scherm)
         function loadCachedQuota() {
             const cachedPlan = localStorage.getItem('ghl_api_plan');
             const cachedQuotaText = localStorage.getItem('ghl_api_quota_text');
@@ -302,11 +325,11 @@
             if (cachedQuotaBar) document.getElementById('quotaBar').style.width = cachedQuotaBar;
         }
 
-        // Stille achtergrond fetch om direct headers op te slaan
         async function syncQuotaBackground() {
             if (!userApiKey) return;
             try {
-                const res = await fetch(`${API_URL}?trend_type=hashtags&period=7&limit=1&country=US`, {
+                // Background sync met veilige limit=5
+                const res = await fetch(`${API_URL}?trend_type=hashtags&period=7&limit=5&country=US`, {
                     headers: {
                         'x-rapidapi-host': API_HOST,
                         'x-rapidapi-key': userApiKey
