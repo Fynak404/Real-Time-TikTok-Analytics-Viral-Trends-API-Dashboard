@@ -115,21 +115,21 @@
                 <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Industry</label>
                 <select id="industrySelect" class="w-full bg-bgMain border border-borderMain rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-accent">
                     <option value="">All Industries</option>
+                    <option value="Apparel & Accessories">Apparel & Accessories</option>
+                    <option value="Beauty & Personal Care">Beauty & Personal Care</option>
+                    <option value="Food & Beverage">Food & Beverage</option>
+                    <option value="Health">Health</option>
+                    <option value="Tech & Electronics">Tech & Electronics</option>
+                    <option value="Sports & Outdoor">Sports & Outdoor</option>
                     <option value="Education">Education</option>
                     <option value="Vehicle & Transportation">Vehicle & Transportation</option>
                     <option value="Baby, Kids & Maternity">Baby, Kids & Maternity</option>
-                    <option value="Beauty & Personal Care">Beauty & Personal Care</option>
-                    <option value="Tech & Electronics">Tech & Electronics</option>
                     <option value="Travel">Travel</option>
                     <option value="Household Products">Household Products</option>
                     <option value="Pets">Pets</option>
                     <option value="Home Improvement">Home Improvement</option>
-                    <option value="Apparel & Accessories">Apparel & Accessories</option>
                     <option value="News & Entertainment">News & Entertainment</option>
                     <option value="Games">Games</option>
-                    <option value="Food & Beverage">Food & Beverage</option>
-                    <option value="Sports & Outdoor">Sports & Outdoor</option>
-                    <option value="Health">Health</option>
                 </select>
             </div>
 
@@ -195,10 +195,8 @@
                 </div>
             </div>
 
-            <!-- Structured Clean Cards -->
             <div id="stateClean" class="hidden space-y-4 max-w-5xl mx-auto pb-8"></div>
 
-            <!-- Pure Code Output -->
             <div id="stateCode" class="hidden h-full max-w-5xl mx-auto">
                 <div class="bg-bgPanel border border-borderMain rounded-lg h-full overflow-hidden flex flex-col">
                     <div class="bg-bgMain border-b border-borderMain px-4 py-2 flex justify-between items-center text-[11px] font-mono">
@@ -413,11 +411,12 @@
             }
 
             const industryVal = document.getElementById('industrySelect') ? document.getElementById('industrySelect').value.trim() : '';
+            const requestedLimit = parseInt(document.getElementById('limit').value);
 
             const payload = {
                 trend_type: document.getElementById('trendType').value,
                 period: document.getElementById('period').value,
-                limit: parseInt(document.getElementById('limit').value),
+                limit: requestedLimit,
                 country: document.getElementById('countrySelect').value,
                 industryId: industryVal
             };
@@ -429,13 +428,12 @@
             document.getElementById('stateLoading').classList.remove('hidden');
             updateStatus('Fetching Data...', 'yellow');
 
-            const baseUrl = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
-            let requestUrl = baseUrl;
+            // Direct URL using your exact requested limit and clean industry name
+            let url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
             if (payload.industryId && payload.trend_type === 'hashtags') {
-                requestUrl += `&industryId=${encodeURIComponent(payload.industryId)}`;
+                url += `&industryId=${encodeURIComponent(payload.industryId)}`;
             }
 
-            // Accurate 9-second progress to 95%
             const startTime = Date.now();
             const NINE_SECONDS = 9000;
             
@@ -449,23 +447,18 @@
                 if (step) {
                     if (progress < 25) step.innerText = "Connecting to TikTok gateway...";
                     else if (progress < 55) step.innerText = "Scraping viral metrics...";
-                    else if (progress < 85) step.innerText = "Applying industry filters...";
+                    else if (progress < 85) step.innerText = "Querying industry trends...";
                     else step.innerText = "Finalizing data stream...";
                 }
             }, 60);
 
             try {
-                const reqHeaders = {
-                    'x-rapidapi-host': API_HOST,
-                    'x-rapidapi-key': userApiKey
-                };
-
-                let res = await fetch(requestUrl, { headers: reqHeaders });
-
-                // SELF-HEALING FALLBACK: If passing industryId caused a backend 500 error, retry cleanly with base URL
-                if (res.status === 500 && requestUrl !== baseUrl) {
-                    res = await fetch(baseUrl, { headers: reqHeaders });
-                }
+                const res = await fetch(url, {
+                    headers: {
+                        'x-rapidapi-host': API_HOST,
+                        'x-rapidapi-key': userApiKey
+                    }
+                });
 
                 clearInterval(progressTimer);
                 updateQuotaHeaders(res.headers);
@@ -488,20 +481,7 @@
 
                 rawData = await res.json();
 
-                // CLIENT-SIDE FILTERING: Guaranteed accurate filter by industry
-                if (payload.industryId && payload.trend_type === 'hashtags' && Array.isArray(rawData.data)) {
-                    const targetInd = payload.industryId.toLowerCase().trim();
-                    const matched = rawData.data.filter(item => {
-                        if (!item.Industries || !Array.isArray(item.Industries)) return false;
-                        return item.Industries.some(ind => {
-                            const indClean = ind.toLowerCase().trim();
-                            return indClean === targetInd || indClean.includes(targetInd) || targetInd.includes(indClean);
-                        });
-                    });
-                    rawData.data = matched;
-                }
-
-                // Hit 100% and pause a split second (300ms) before displaying the result
+                // Hit 100% and pause a split second before showing results
                 document.getElementById('loadBar').style.width = '100%';
                 document.getElementById('loadPercent').innerText = '100%';
                 if (document.getElementById('loadStep')) {
@@ -539,7 +519,7 @@
             const items = res.data || [];
             if (items.length === 0) {
                 const selectedInd = document.getElementById('industrySelect') ? document.getElementById('industrySelect').value : '';
-                container.innerHTML = `<div class="text-center text-xs text-zinc-500 py-8">${selectedInd ? `No hashtags found under "${selectedInd}" in the current top batch. Try increasing the Return Limit.` : 'No results found for this selection.'}</div>`;
+                container.innerHTML = `<div class="text-center text-xs text-zinc-500 py-8">${selectedInd ? `No hashtags found under "${selectedInd}" for this selection.` : 'No results found for this selection.'}</div>`;
                 return;
             }
 
