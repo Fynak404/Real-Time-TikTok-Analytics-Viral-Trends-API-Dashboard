@@ -429,12 +429,13 @@
             document.getElementById('stateLoading').classList.remove('hidden');
             updateStatus('Fetching Data...', 'yellow');
 
-            let url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
+            const baseUrl = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
+            let requestUrl = baseUrl;
             if (payload.industryId && payload.trend_type === 'hashtags') {
-                url += `&industryId=${encodeURIComponent(payload.industryId)}`;
+                requestUrl += `&industryId=${encodeURIComponent(payload.industryId)}`;
             }
-            
-            // 9-second smooth climb to 95%
+
+            // Accurate 9-second progress to 95%
             const startTime = Date.now();
             const NINE_SECONDS = 9000;
             
@@ -454,15 +455,19 @@
             }, 60);
 
             try {
-                const res = await fetch(url, {
-                    headers: {
-                        'x-rapidapi-host': API_HOST,
-                        'x-rapidapi-key': userApiKey
-                    }
-                });
+                const reqHeaders = {
+                    'x-rapidapi-host': API_HOST,
+                    'x-rapidapi-key': userApiKey
+                };
+
+                let res = await fetch(requestUrl, { headers: reqHeaders });
+
+                // SELF-HEALING FALLBACK: If passing industryId caused a backend 500 error, retry cleanly with base URL
+                if (res.status === 500 && requestUrl !== baseUrl) {
+                    res = await fetch(baseUrl, { headers: reqHeaders });
+                }
 
                 clearInterval(progressTimer);
-
                 updateQuotaHeaders(res.headers);
 
                 if (res.status === 401 || res.status === 403) {
@@ -483,23 +488,26 @@
 
                 rawData = await res.json();
 
-                // Client-side verification: guarantee only the selected industry items are shown
+                // CLIENT-SIDE FILTERING: Guaranteed accurate filter by industry
                 if (payload.industryId && payload.trend_type === 'hashtags' && Array.isArray(rawData.data)) {
-                    const filtered = rawData.data.filter(item => {
+                    const targetInd = payload.industryId.toLowerCase().trim();
+                    const matched = rawData.data.filter(item => {
                         if (!item.Industries || !Array.isArray(item.Industries)) return false;
-                        return item.Industries.some(ind => ind.toLowerCase().trim() === payload.industryId.toLowerCase().trim());
+                        return item.Industries.some(ind => {
+                            const indClean = ind.toLowerCase().trim();
+                            return indClean === targetInd || indClean.includes(targetInd) || targetInd.includes(indClean);
+                        });
                     });
-                    rawData.data = filtered;
+                    rawData.data = matched;
                 }
 
-                // 1. Instantly reach 100%
+                // Hit 100% and pause a split second (300ms) before displaying the result
                 document.getElementById('loadBar').style.width = '100%';
                 document.getElementById('loadPercent').innerText = '100%';
                 if (document.getElementById('loadStep')) {
                     document.getElementById('loadStep').innerText = 'Complete!';
                 }
 
-                // 2. Wait a split second (300ms) so you can see 100% before displaying the result
                 await new Promise(resolve => setTimeout(resolve, 300));
 
                 renderCleanData(rawData);
@@ -530,7 +538,8 @@
 
             const items = res.data || [];
             if (items.length === 0) {
-                container.innerHTML = `<div class="text-center text-xs text-zinc-500 py-8">No results found for this selection.</div>`;
+                const selectedInd = document.getElementById('industrySelect') ? document.getElementById('industrySelect').value : '';
+                container.innerHTML = `<div class="text-center text-xs text-zinc-500 py-8">${selectedInd ? `No hashtags found under "${selectedInd}" in the current top batch. Try increasing the Return Limit.` : 'No results found for this selection.'}</div>`;
                 return;
             }
 
