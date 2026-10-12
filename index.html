@@ -108,26 +108,26 @@
                 </select>
             </div>
 
-            <!-- Industry Selector -->
+            <!-- Industry Selector (SIMPLIFIED VALUES) -->
             <div class="space-y-1.5">
                 <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Industry</label>
                 <select id="industrySelect" class="w-full bg-bgMain border border-borderMain rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-accent">
                     <option value="">All Industries</option>
-                    <option value="Apparel & Accessories">Apparel & Accessories</option>
-                    <option value="Beauty & Personal Care">Beauty & Personal Care</option>
-                    <option value="Food & Beverage">Food & Beverage</option>
-                    <option value="Health">Health</option>
-                    <option value="Tech & Electronics">Tech & Electronics</option>
-                    <option value="Sports & Outdoor">Sports & Outdoor</option>
-                    <option value="Education">Education</option>
-                    <option value="Vehicle & Transportation">Vehicle & Transportation</option>
-                    <option value="Baby, Kids & Maternity">Baby, Kids & Maternity</option>
-                    <option value="Travel">Travel</option>
-                    <option value="Household Products">Household Products</option>
-                    <option value="Pets">Pets</option>
-                    <option value="Home Improvement">Home Improvement</option>
-                    <option value="News & Entertainment">News & Entertainment</option>
-                    <option value="Games">Games</option>
+                    <option value="apparel">Apparel & Accessories</option>
+                    <option value="beauty">Beauty & Personal Care</option>
+                    <option value="food">Food & Beverage</option>
+                    <option value="health">Health</option>
+                    <option value="tech">Tech & Electronics</option>
+                    <option value="sports">Sports & Outdoor</option>
+                    <option value="education">Education</option>
+                    <option value="vehicle">Vehicle & Transportation</option>
+                    <option value="baby">Baby, Kids & Maternity</option>
+                    <option value="travel">Travel</option>
+                    <option value="household">Household Products</option>
+                    <option value="pets">Pets</option>
+                    <option value="home">Home Improvement</option>
+                    <option value="news">News & Entertainment</option>
+                    <option value="games">Games</option>
                 </select>
             </div>
 
@@ -213,6 +213,8 @@
 
         const API_HOST = 'real-time-tiktok-analytics-viral-trends-api.p.rapidapi.com';
         const API_URL = 'https://real-time-tiktok-analytics-viral-trends-api.p.rapidapi.com/api/v1/tiktok/trends';
+        // Fast, dedicated validation route (Does NOT hit apify, responds instantly)
+        const API_VALIDATE_URL = 'https://real-time-tiktok-analytics-viral-trends-api.p.rapidapi.com/api/v1/tiktok/validate';
 
         let userApiKey = localStorage.getItem('ghl_api_key') || '';
         let currentPeriod = '7';
@@ -242,8 +244,9 @@
             const btn = document.getElementById('saveKeyBtn');
             const originalText = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = `<span>Validating Key with RapidAPI...</span>`;
+            btn.innerHTML = `<span>Validating Key Instantly...</span>`;
 
+            // Validate key instantly through our new lightweight route
             const isValid = await validateAndLoadKey(inputKey, false);
 
             btn.disabled = false;
@@ -262,8 +265,8 @@
 
         async function validateAndLoadKey(key, isStartup) {
             try {
-                const testUrl = `${API_URL}?trend_type=hashtags&period=7&limit=1&country=US`;
-                const res = await fetch(testUrl, {
+                // Call the fast validate endpoint (no long scraping required to check a key)
+                const res = await fetch(API_VALIDATE_URL, {
                     headers: {
                         'x-rapidapi-host': API_HOST,
                         'x-rapidapi-key': key
@@ -271,18 +274,14 @@
                 });
 
                 if (res.status === 401 || res.status === 403) {
-                    if (!isStartup) {
-                        localStorage.removeItem('ghl_api_key');
-                    }
+                    if (!isStartup) localStorage.removeItem('ghl_api_key');
                     return false;
                 }
 
                 updateQuotaHeaders(res.headers);
                 return true;
             } catch (err) {
-                if (isStartup) {
-                    document.getElementById('activeTierDisplay').innerText = 'CACHED KEY';
-                }
+                if (isStartup) document.getElementById('activeTierDisplay').innerText = 'CACHED KEY';
                 return true; 
             }
         }
@@ -368,22 +367,11 @@
                 const numLimit = parseInt(limit);
                 let planName = 'BASIC';
                 
-                if (numLimit <= 10) {
-                    planName = 'BASIC';
-                    targetNextTier = 'PRO';
-                } else if (numLimit <= 750) {
-                    planName = 'PRO';
-                    targetNextTier = 'ULTRA';
-                } else if (numLimit <= 1500) {
-                    planName = 'ULTRA';
-                    targetNextTier = 'MEGA';
-                } else if (numLimit <= 5000) {
-                    planName = 'MEGA';
-                    targetNextTier = 'PRIVATE_PLAN';
-                } else {
-                    planName = 'PRIVATE PLAN';
-                    targetNextTier = 'PRIVATE_PLAN';
-                }
+                if (numLimit <= 10) { planName = 'BASIC'; targetNextTier = 'PRO'; } 
+                else if (numLimit <= 750) { planName = 'PRO'; targetNextTier = 'ULTRA'; } 
+                else if (numLimit <= 1500) { planName = 'ULTRA'; targetNextTier = 'MEGA'; } 
+                else if (numLimit <= 5000) { planName = 'MEGA'; targetNextTier = 'PRIVATE_PLAN'; } 
+                else { planName = 'PRIVATE PLAN'; targetNextTier = 'PRIVATE_PLAN'; }
 
                 document.getElementById('activeTierDisplay').innerText = planName;
             }
@@ -428,7 +416,7 @@
 
             let url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
             if (payload.industryId && payload.trend_type === 'hashtags') {
-                url += `&industryId=${encodeURIComponent(payload.industryId)}`;
+                url += `&industryId=${encodeURIComponent(payload.industryId)}`; // Fills in literal "health" here
             }
 
             const startTime = Date.now();
@@ -466,9 +454,9 @@
 
                 if (res.status === 429) {
                     if (targetNextTier === 'PRIVATE_PLAN') {
-                        throw new Error(`Reached ur limit u can apply for a private plan with custom limits to continue`);
+                        throw new Error(`Reached your limit, you can apply for a private plan with custom limits to continue`);
                     } else {
-                        throw new Error(`Reached ur limit upgrade to ${targetNextTier} to continue`);
+                        throw new Error(`Reached your limit, upgrade to ${targetNextTier} to continue`);
                     }
                 }
 
@@ -486,8 +474,6 @@
                     document.getElementById('loadStep').innerText = 'Complete!';
                 }
 
-                await new Promise(resolve => setTimeout(resolve, 300));
-
                 renderCleanData(rawData);
                 document.getElementById('codeContent').textContent = JSON.stringify(rawData, null, 2);
 
@@ -500,8 +486,7 @@
 
             } catch (err) {
                 clearInterval(progressTimer);
-                
-                const isLimitError = err.message.includes('Reached ur limit');
+                const isLimitError = err.message.includes('Reached your limit');
                 alert(isLimitError ? err.message : "Execution Error: " + err.message);
                 
                 document.getElementById('stateLoading').classList.add('hidden');
