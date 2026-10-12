@@ -73,7 +73,6 @@
         </div>
 
         <div class="flex-1 overflow-y-auto p-5 space-y-5">
-            <!-- Active Plan & Request Quota Stats -->
             <div class="bg-bgMain border border-borderMain rounded-lg p-3.5 space-y-3">
                 <div class="flex items-center justify-between border-b border-borderMain/60 pb-2">
                     <div>
@@ -106,7 +105,6 @@
             <div class="space-y-1.5">
                 <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Country Code</label>
                 <select id="countrySelect" class="w-full bg-bgMain border border-borderMain rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono focus:outline-none focus:border-accent">
-                    <!-- Populated dynamically -->
                 </select>
             </div>
 
@@ -428,7 +426,6 @@
             document.getElementById('stateLoading').classList.remove('hidden');
             updateStatus('Fetching Data...', 'yellow');
 
-            // Direct URL using your exact requested limit and clean industry name
             let url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
             if (payload.industryId && payload.trend_type === 'hashtags') {
                 url += `&industryId=${encodeURIComponent(payload.industryId)}`;
@@ -476,12 +473,13 @@
                 }
 
                 if (!res.ok) {
-                    throw new Error(`RapidAPI Error ${res.status}`);
+                    const errJson = await res.json().catch(() => ({}));
+                    const msg = errJson.message || errJson.detail || `RapidAPI Error ${res.status}`;
+                    throw new Error(msg);
                 }
 
                 rawData = await res.json();
 
-                // Hit 100% and pause a split second before showing results
                 document.getElementById('loadBar').style.width = '100%';
                 document.getElementById('loadPercent').innerText = '100%';
                 if (document.getElementById('loadStep')) {
@@ -519,7 +517,7 @@
             const items = res.data || [];
             if (items.length === 0) {
                 const selectedInd = document.getElementById('industrySelect') ? document.getElementById('industrySelect').value : '';
-                container.innerHTML = `<div class="text-center text-xs text-zinc-500 py-8">${selectedInd ? `No hashtags found under "${selectedInd}" for this selection.` : 'No results found for this selection.'}</div>`;
+                container.innerHTML = `<div class="text-center text-xs text-zinc-500 py-8">${selectedInd ? `No trending hashtags found under "${selectedInd}" in this region.` : 'No results found for this selection.'}</div>`;
                 return;
             }
 
