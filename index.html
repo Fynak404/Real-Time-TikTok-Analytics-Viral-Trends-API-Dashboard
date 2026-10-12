@@ -110,6 +110,29 @@
                 </select>
             </div>
 
+            <!-- Industry Selector -->
+            <div class="space-y-1.5">
+                <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Industry</label>
+                <select id="industrySelect" class="w-full bg-bgMain border border-borderMain rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-accent">
+                    <option value="">All Industries</option>
+                    <option value="27000000000">Education</option>
+                    <option value="29000000000">Vehicle & Transportation</option>
+                    <option value="22000000000">Baby, Kids & Maternity</option>
+                    <option value="14000000000">Beauty & Personal Care</option>
+                    <option value="20000000000">Tech & Electronics</option>
+                    <option value="31000000000">Travel</option>
+                    <option value="21000000000">Household Products</option>
+                    <option value="28000000000">Pets</option>
+                    <option value="24000000000">Home Improvement</option>
+                    <option value="10000000000">Apparel & Accessories</option>
+                    <option value="17000000000">News & Entertainment</option>
+                    <option value="19000000000">Games</option>
+                    <option value="16000000000">Food & Beverage</option>
+                    <option value="26000000000">Sports & Outdoor</option>
+                    <option value="15000000000">Health</option>
+                </select>
+            </div>
+
             <div class="space-y-1.5">
                 <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Period (Days)</label>
                 <div class="flex bg-bgMain border border-borderMain rounded-lg p-1 gap-1">
@@ -280,6 +303,7 @@
         function handleTypeChange() {
             const type = document.getElementById('trendType').value;
             const countrySelect = document.getElementById('countrySelect');
+            const industrySelect = document.getElementById('industrySelect');
             const p90 = document.getElementById('period90');
 
             const currentSelectedCountry = countrySelect.value;
@@ -303,9 +327,19 @@
                 p90.disabled = true;
                 if (currentPeriod === '90') setPeriod('7');
                 p90.classList.add('opacity-30', 'cursor-not-allowed');
+
+                if (industrySelect) {
+                    industrySelect.disabled = true;
+                    industrySelect.classList.add('opacity-30', 'cursor-not-allowed');
+                }
             } else {
                 p90.disabled = false;
                 p90.classList.remove('opacity-30', 'cursor-not-allowed');
+
+                if (industrySelect) {
+                    industrySelect.disabled = false;
+                    industrySelect.classList.remove('opacity-30', 'cursor-not-allowed');
+                }
             }
         }
 
@@ -379,11 +413,14 @@
                 return;
             }
 
+            const industryVal = document.getElementById('industrySelect') ? document.getElementById('industrySelect').value : '';
+
             const payload = {
                 trend_type: document.getElementById('trendType').value,
                 period: document.getElementById('period').value,
                 limit: parseInt(document.getElementById('limit').value),
-                country: document.getElementById('countrySelect').value
+                country: document.getElementById('countrySelect').value,
+                industryId: industryVal
             };
 
             ['stateEmpty', 'stateClean', 'stateCode'].forEach(id => document.getElementById(id).classList.add('hidden'));
@@ -393,7 +430,10 @@
             document.getElementById('stateLoading').classList.remove('hidden');
             updateStatus('Fetching Data...', 'yellow');
 
-            const url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
+            let url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
+            if (payload.industryId && payload.trend_type === 'hashtags') {
+                url += `&industryId=${encodeURIComponent(payload.industryId)}`;
+            }
             
             let progress = 0;
             const progressTimer = setInterval(() => {
