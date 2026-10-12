@@ -420,11 +420,11 @@
             }
 
             const startTime = Date.now();
-            const NINE_SECONDS = 9000;
+            const TEN_SECONDS = 10500;
             
             const progressTimer = setInterval(() => {
                 const elapsed = Date.now() - startTime;
-                const progress = Math.min(Math.round((elapsed / NINE_SECONDS) * 95), 95);
+                const progress = Math.min(Math.round((elapsed / TEN_SECONDS) * 95), 95);
                 document.getElementById('loadBar').style.width = progress + '%';
                 document.getElementById('loadPercent').innerText = progress + '%';
 
