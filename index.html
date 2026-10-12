@@ -115,21 +115,21 @@
                 <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Industry</label>
                 <select id="industrySelect" class="w-full bg-bgMain border border-borderMain rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-accent">
                     <option value="">All Industries</option>
-                    <option value="27000000000">Education</option>
-                    <option value="29000000000">Vehicle & Transportation</option>
-                    <option value="22000000000">Baby, Kids & Maternity</option>
-                    <option value="14000000000">Beauty & Personal Care</option>
-                    <option value="20000000000">Tech & Electronics</option>
-                    <option value="31000000000">Travel</option>
-                    <option value="21000000000">Household Products</option>
-                    <option value="28000000000">Pets</option>
-                    <option value="24000000000">Home Improvement</option>
-                    <option value="10000000000">Apparel & Accessories</option>
-                    <option value="17000000000">News & Entertainment</option>
-                    <option value="19000000000">Games</option>
-                    <option value="16000000000">Food & Beverage</option>
-                    <option value="26000000000">Sports & Outdoor</option>
-                    <option value="15000000000">Health</option>
+                    <option value="Education">Education</option>
+                    <option value="Vehicle & Transportation">Vehicle & Transportation</option>
+                    <option value="Baby, Kids & Maternity">Baby, Kids & Maternity</option>
+                    <option value="Beauty & Personal Care">Beauty & Personal Care</option>
+                    <option value="Tech & Electronics">Tech & Electronics</option>
+                    <option value="Travel">Travel</option>
+                    <option value="Household Products">Household Products</option>
+                    <option value="Pets">Pets</option>
+                    <option value="Home Improvement">Home Improvement</option>
+                    <option value="Apparel & Accessories">Apparel & Accessories</option>
+                    <option value="News & Entertainment">News & Entertainment</option>
+                    <option value="Games">Games</option>
+                    <option value="Food & Beverage">Food & Beverage</option>
+                    <option value="Sports & Outdoor">Sports & Outdoor</option>
+                    <option value="Health">Health</option>
                 </select>
             </div>
 
@@ -189,7 +189,7 @@
                         <span id="loadPercent" class="text-accent font-bold">0%</span>
                     </div>
                     <div class="w-full h-1.5 bg-borderMain rounded-full overflow-hidden">
-                        <div id="loadBar" class="h-full bg-accent transition-all duration-300" style="width: 0%"></div>
+                        <div id="loadBar" class="h-full bg-accent transition-all duration-100" style="width: 0%"></div>
                     </div>
                     <div id="loadStep" class="mt-3 text-xs font-mono text-zinc-400 text-center animate-pulse">Initializing pipeline...</div>
                 </div>
@@ -368,7 +368,6 @@
             const limit = headers.get('x-ratelimit-requests-limit');
             const remaining = headers.get('x-ratelimit-requests-remaining');
             
-            // TIER LOGICA: BASIC (10) -> PRO (750) -> ULTRA (1500) -> MEGA (5000) -> >5000 is PRIVATE PLAN
             if (limit) {
                 const numLimit = parseInt(limit);
                 let planName = 'BASIC';
@@ -413,7 +412,7 @@
                 return;
             }
 
-            const industryVal = document.getElementById('industrySelect') ? document.getElementById('industrySelect').value : '';
+            const industryVal = document.getElementById('industrySelect') ? document.getElementById('industrySelect').value.trim() : '';
 
             const payload = {
                 trend_type: document.getElementById('trendType').value,
@@ -435,12 +434,24 @@
                 url += `&industryId=${encodeURIComponent(payload.industryId)}`;
             }
             
-            let progress = 0;
+            // 9-second smooth climb to 95%
+            const startTime = Date.now();
+            const NINE_SECONDS = 9000;
+            
             const progressTimer = setInterval(() => {
-                progress = Math.min(progress + 10, 95);
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(Math.round((elapsed / NINE_SECONDS) * 95), 95);
                 document.getElementById('loadBar').style.width = progress + '%';
                 document.getElementById('loadPercent').innerText = progress + '%';
-            }, 200);
+
+                const step = document.getElementById('loadStep');
+                if (step) {
+                    if (progress < 25) step.innerText = "Connecting to TikTok gateway...";
+                    else if (progress < 55) step.innerText = "Scraping viral metrics...";
+                    else if (progress < 85) step.innerText = "Applying industry filters...";
+                    else step.innerText = "Finalizing data stream...";
+                }
+            }, 60);
 
             try {
                 const res = await fetch(url, {
@@ -472,8 +483,24 @@
 
                 rawData = await res.json();
 
+                // Client-side verification: guarantee only the selected industry items are shown
+                if (payload.industryId && payload.trend_type === 'hashtags' && Array.isArray(rawData.data)) {
+                    const filtered = rawData.data.filter(item => {
+                        if (!item.Industries || !Array.isArray(item.Industries)) return false;
+                        return item.Industries.some(ind => ind.toLowerCase().trim() === payload.industryId.toLowerCase().trim());
+                    });
+                    rawData.data = filtered;
+                }
+
+                // 1. Instantly reach 100%
                 document.getElementById('loadBar').style.width = '100%';
                 document.getElementById('loadPercent').innerText = '100%';
+                if (document.getElementById('loadStep')) {
+                    document.getElementById('loadStep').innerText = 'Complete!';
+                }
+
+                // 2. Wait a split second (300ms) so you can see 100% before displaying the result
+                await new Promise(resolve => setTimeout(resolve, 300));
 
                 renderCleanData(rawData);
                 document.getElementById('codeContent').textContent = JSON.stringify(rawData, null, 2);
@@ -587,6 +614,7 @@
                     const posts = rawPosts ? Number(rawPosts).toLocaleString() : 'N/A';
                     const country = item.Country || item["Country Code"] || document.getElementById('countrySelect').value || 'US';
                     const direction = item["Trend Direction"] || 'up';
+                    const industries = Array.isArray(item.Industries) ? item.Industries.join(', ') : (item.Industries || '');
 
                     let creatorsHTML = '';
                     if (item["Top Creators"] && item["Top Creators"].length > 0) {
@@ -618,7 +646,10 @@
                                     <span class="text-xs font-mono font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-md">#${rank}</span>
                                     <h3 class="text-base font-bold text-white tracking-tight">${tag}</h3>
                                 </div>
-                                <span class="text-[10px] font-mono text-green-400 bg-green-400/10 px-2 py-0.5 rounded-md uppercase">Trend: ${direction}</span>
+                                <div class="flex items-center gap-2">
+                                    ${industries ? `<span class="text-[10px] font-mono text-zinc-300 bg-borderMain px-2 py-0.5 rounded-md">${industries}</span>` : ''}
+                                    <span class="text-[10px] font-mono text-green-400 bg-green-400/10 px-2 py-0.5 rounded-md uppercase">Trend: ${direction}</span>
+                                </div>
                             </div>
 
                             <div class="grid grid-cols-3 gap-2 bg-bgMain p-2.5 rounded-md border border-borderMain/50 text-xs my-2">
