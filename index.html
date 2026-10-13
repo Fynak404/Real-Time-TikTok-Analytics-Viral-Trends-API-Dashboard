@@ -77,7 +77,7 @@
                 <div class="flex items-center justify-between border-b border-borderMain/60 pb-2">
                     <div>
                         <p class="text-[9px] text-zinc-500 uppercase font-semibold">Plan Name</p>
-                        <p id="activeTierDisplay" class="text-xs font-bold text-accent">VERIFYING...</p>
+                        <p id="activeTierDisplay" class="text-xs font-bold text-accent">AWAITING FETCH</p>
                     </div>
                     <span id="tierCapBadge" class="text-[10px] font-mono text-zinc-300 bg-borderMain px-2 py-0.5 rounded-md">Live</span>
                 </div>
@@ -108,7 +108,7 @@
                 </select>
             </div>
 
-            <!-- Industry Selector (SIMPLIFIED VALUES) -->
+            <!-- Industry Selector -->
             <div class="space-y-1.5">
                 <label class="text-[11px] font-medium text-zinc-400 uppercase tracking-wider">Industry</label>
                 <select id="industrySelect" class="w-full bg-bgMain border border-borderMain rounded-lg px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-accent">
@@ -213,8 +213,9 @@
 
         const API_HOST = 'real-time-tiktok-analytics-viral-trends-api.p.rapidapi.com';
         const API_URL = 'https://real-time-tiktok-analytics-viral-trends-api.p.rapidapi.com/api/v1/tiktok/trends';
-        // Fast, dedicated validation route (Does NOT hit apify, responds instantly)
-        const API_VALIDATE_URL = 'https://real-time-tiktok-analytics-viral-trends-api.p.rapidapi.com/api/v1/tiktok/validate';
+        
+        // General RapidAPI Platform GraphQL endpoint (0 credits used on your API)
+        const RAPID_GRAPHQL_URL = 'https://graphql.provider.api.rapidapi.com/graphql';
 
         let userApiKey = localStorage.getItem('ghl_api_key') || '';
         let currentPeriod = '7';
@@ -246,7 +247,7 @@
             btn.disabled = true;
             btn.innerHTML = `<span>Validating Key Instantly...</span>`;
 
-            // Validate key instantly through our new lightweight route
+            // Validate key instantly through GraphQL
             const isValid = await validateAndLoadKey(inputKey, false);
 
             btn.disabled = false;
@@ -258,30 +259,42 @@
                 document.getElementById('authModal').classList.add('hidden');
                 updateStatus('Key Verified', 'green');
             } else {
-                alert("Invalid X-RapidAPI-Key! Access denied by RapidAPI (401/403). Please enter a working key.");
+                alert("Invalid X-RapidAPI-Key! Access denied by RapidAPI. Please enter a working key.");
                 updateStatus('Invalid Key', 'red');
             }
         }
 
         async function validateAndLoadKey(key, isStartup) {
             try {
-                // Call the fast validate endpoint (no long scraping required to check a key)
-                const res = await fetch(API_VALIDATE_URL, {
+                // Hits the general RapidAPI Platform API to check if the key is structurally valid.
+                // Costs 0 TikTok API requests.
+                const res = await fetch(RAPID_GRAPHQL_URL, {
+                    method: 'POST',
                     headers: {
-                        'x-rapidapi-host': API_HOST,
+                        'content-type': 'application/json',
+                        'x-rapidapi-host': 'graphql.provider.api.rapidapi.com',
                         'x-rapidapi-key': key
-                    }
+                    },
+                    body: JSON.stringify({ query: "{ __typename }" })
                 });
 
+                // If RapidAPI blocks it at the gateway, the key is completely fake
                 if (res.status === 401 || res.status === 403) {
                     if (!isStartup) localStorage.removeItem('ghl_api_key');
                     return false;
                 }
 
-                updateQuotaHeaders(res.headers);
+                // Note: We DO NOT parse quota here anymore! 
+                // Quota is only fetched during a live Execute Fetch request.
+                document.getElementById('activeTierDisplay').innerText = 'AWAITING FETCH';
+                document.getElementById('quotaText').innerText = '-- / --';
+                document.getElementById('quotaBar').style.width = '0%';
+
                 return true;
             } catch (err) {
-                if (isStartup) document.getElementById('activeTierDisplay').innerText = 'CACHED KEY';
+                // If CORS blocks the GraphQL request in browser, we fallback to trusting the cached key
+                // and letting it fail on "Execute Fetch" if it's genuinely invalid.
+                if (isStartup) document.getElementById('activeTierDisplay').innerText = 'AWAITING FETCH';
                 return true; 
             }
         }
@@ -360,6 +373,7 @@
         }
 
         function updateQuotaHeaders(headers) {
+            // Extracts live ratelimit usage generated directly from the live TikTok request
             const limit = headers.get('x-ratelimit-requests-limit');
             const remaining = headers.get('x-ratelimit-requests-remaining');
             
@@ -384,9 +398,6 @@
 
                 document.getElementById('quotaText').innerText = `${used} / ${lim}`;
                 document.getElementById('quotaBar').style.width = percentage + '%';
-            } else {
-                document.getElementById('quotaText').innerText = 'Synced';
-                document.getElementById('quotaBar').style.width = '100%';
             }
         }
 
@@ -416,15 +427,15 @@
 
             let url = `${API_URL}?trend_type=${payload.trend_type}&period=${payload.period}&limit=${payload.limit}&country=${payload.country}`;
             if (payload.industryId && payload.trend_type === 'hashtags') {
-                url += `&industryId=${encodeURIComponent(payload.industryId)}`; // Fills in literal "health" here
+                url += `&industryId=${encodeURIComponent(payload.industryId)}`;
             }
 
             const startTime = Date.now();
-            const TEN_SECONDS = 10500;
+            const NINE_SECONDS = 9000;
             
             const progressTimer = setInterval(() => {
                 const elapsed = Date.now() - startTime;
-                const progress = Math.min(Math.round((elapsed / TEN_SECONDS) * 95), 95);
+                const progress = Math.min(Math.round((elapsed / NINE_SECONDS) * 95), 95);
                 document.getElementById('loadBar').style.width = progress + '%';
                 document.getElementById('loadPercent').innerText = progress + '%';
 
@@ -446,10 +457,12 @@
                 });
 
                 clearInterval(progressTimer);
+                
+                // UPDATE QUOTA HERE FROM THE LIVE FETCH
                 updateQuotaHeaders(res.headers);
 
                 if (res.status === 401 || res.status === 403) {
-                    throw new Error('Invalid or expired RapidAPI Key');
+                    throw new Error('Invalid or expired RapidAPI Key / Unsubscribed');
                 }
 
                 if (res.status === 429) {
